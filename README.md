@@ -242,6 +242,35 @@ El mismo tick podr?a producir posteriormente:
 95 movimientos de inventario
 ```
 
+## Geography Configuration
+
+La geograf?a de referencia se carga desde YAML y el c?digo no depende de Colombia.
+El esquema valida `Country`, `Region`, `AdministrativeArea` y `City`, incluyendo sus
+relaciones. Actualmente existe un ejemplo peque?o en
+`configs/geography/colombia.yaml`; todav?a no genera locations.
+
+```python
+from pathlib import Path
+
+from dataforge.configuration.geography import load_geography
+
+geography = load_geography(Path("configs/geography/colombia.yaml"))
+```
+
+## Geography Generator
+
+`GeographyDefinition` describes reference geography. During bootstrap,
+`GeographyGenerator` converts it into `countries`, `regions`,
+`administrative_areas`, `cities`, and synthetic `locations`. It does not
+know concrete countries; location characteristics are reproducible from the seed.
+
+```text
+colombia.yaml -> load_geography() -> GeographyDefinition
+               -> GeographyGenerator -> SimulationState
+```
+
+This generator runs during bootstrap, never once per tick.
+
 ## Calidad y pruebas
 
 ```bash

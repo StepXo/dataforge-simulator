@@ -26,3 +26,10 @@
 - Engines share results through `SimulationState`; temporal context uses key `tick-{tick_index}`.
 - Day names must not depend on the system locale, and ticks do not limit generated actions.
 - Concrete engines must not know FastAPI, the CLI, or persistence.
+- Never hardcode countries, regions, or cities inside generators; reference geography comes from external configuration.
+- Geography configuration must not contain location business rules.
+- Do not add configuration formats without an explicit feature.
+- GeographyGenerator must never hardcode countries, regions, or cities; reference data comes from GeographyDefinition.
+- Only synthetic Location characteristics use RandomEngine.
+- GeographyGenerator is bootstrap logic and must never run per tick.
+- Store each entity before publishing its creation event.
