@@ -129,6 +129,88 @@ La API responde HTTP 422 ante campos ausentes o tipos inv?lidos, semillas fuera 
 `0..4294967295`, cantidades fuera de `1..1000` o una fecha final anterior a la
 inicial.
 
+## Domain Events
+
+Un Domain Event representa algo que ya ocurri? dentro de la aplicaci?n. Cada evento
+contiene un UUID, un tipo, una marca de tiempo y un payload tipado.
+
+El `EventBus` es s?ncrono y funciona exclusivamente en memoria: primero guarda cada
+evento y luego llama a los handlers registrados para su tipo. El `EventStore`
+mantiene temporalmente los eventos durante la vida del proceso y permite
+consultarlos, contarlos y limpiarlos; no utiliza persistencia.
+
+Actualmente existe un solo evento, `EntityCreated`. El preview publica uno por cada
+entidad gen?rica generada con su identificador y factor de actividad. Un handler lo
+registra en la consola mediante el sistema est?ndar de logging. Los eventos son
+infraestructura interna y no forman parte de la respuesta HTTP.
+
+## Core Domain
+
+El Core Domain define el lenguaje b?sico compartido sin depender de HTTP,
+persistencia ni motores concretos. `Entity` es la base inmutable para cualquier
+objeto identificable y contiene solamente un UUID, su fecha de creaci?n y metadata
+opcional. `Identifier` representa un identificador basado en UUID.
+
+`DateRange` representa un periodo calendario v?lido y calcula su duraci?n inclusiva.
+`SimulationContext` agrupa la semilla, el rango de fechas, el generador aleatorio y
+el bus de eventos utilizados durante una ejecuci?n. El preview existente utiliza
+estas abstracciones sin modificar su contrato HTTP.
+
+Definir primero este n?cleo mantiene consistentes las primitivas compartidas y evita
+acoplar las simulaciones a transporte, almacenamiento o infraestructura externa.
+
+## Simulation Runtime Contracts
+
+`SimulationClock` representa el estado temporal determinista de una ejecuci?n. Usa
+un `TimeRange` inclusivo y una granularidad configurable sin superar el instante
+final.
+
+`SimulationEngine` es un protocolo estructural con un ?nico m?todo `execute`, que
+recibe el `SimulationContext` compartido y el `SimulationClock`. Todos los motores
+concretos compartir?n este contrato, pero esta versi?n todav?a no implementa ning?n
+motor ni orquestador.
+
+## Simulation Runtime
+
+Un tick es una unidad de avance temporal, no una acci?n ni una transacci?n.
+`TickUnit.DAY` avanza un d?a y `TickUnit.HOUR` avanza una hora. Dentro de un mismo
+tick, un engine puede producir cero, una o muchas acciones.
+
+`SimulationClock` conserva el instante y el ?ndice actuales. El
+`SimulationOrchestrator` ejecuta todos los engines una vez por tick, preservando su
+orden, y solo entonces avanza el reloj. Por ejemplo:
+
+```text
+3 ticks x 2 engines = 6 engine executions
+```
+
+Las seis ejecuciones pueden generar cualquier cantidad de acciones internas. Esta
+versi?n define y prueba el ciclo de ejecuci?n, pero todav?a no contiene engines
+concretos ni integraci?n con la API o la CLI.
+
+## Simulation State and Bootstrap
+
+`SimulationState` representa el estado compartido que vive exclusivamente en
+memoria durante una ejecuci?n. Organiza colecciones por nombre sin crear categor?as
+de dominio por adelantado. Cada `StateCollection` almacena valores tipados mediante
+claves ?nicas y conserva su orden de inserci?n.
+
+Estado y eventos tienen responsabilidades diferentes: el estado describe lo que
+existe actualmente, mientras un evento registra algo que ocurri?. El estado no es
+una base de datos y no existe persistencia en esta versi?n.
+
+Un `BootstrapGenerator` prepara una parte del estado antes del primer tick.
+`BootstrapRunner` ejecuta esos generadores una vez cada uno y en el orden recibido,
+compartiendo el mismo contexto. Durante los ticks, los engines podr?n consultar y
+actualizar ese estado. Todav?a no existen generadores concretos.
+
+```text
+BootstrapRunner
+    -> SimulationState inicial
+    -> SimulationOrchestrator
+    -> Estado actualizado durante los ticks
+```
+
 ## Calidad y pruebas
 
 ```bash

@@ -6,3 +6,18 @@
 - Do not add dependencies or abstractions unless the current feature requires them.
 - Update tests and `README.md` whenever behavior changes.
 - Never report a validation as passing unless it was actually executed successfully.
+- Never add distributed infrastructure to the event system without a feature that justifies it.
+- Every new simulation engine must depend only on `SimulationContext` and the Core Domain; it must never access external components directly.
+- Every concrete engine must satisfy the `SimulationEngine` protocol.
+- Engines must receive `SimulationContext` and `SimulationClock`; no engine may manage its own clock.
+- Do not add engine lifecycle, priorities, or registration without a feature that justifies them.
+- `SimulationOrchestrator` is the only component that controls the execution loop.
+- Engines must not advance the clock or execute other engines directly.
+- Every engine in a tick must observe the same time and tick index.
+- A tick does not limit how many actions an engine can generate.
+- Do not add engine priorities, dependencies, concurrency, or retries without a feature that justifies them.
+- Initial master data must be created by `BootstrapGenerator`, never by a per-tick engine.
+- Bootstrap generators do not receive `SimulationClock`, and engines must not recreate master data each tick.
+- All shared execution state belongs in `SimulationState`; never use global state or singletons.
+- `SimulationState` is not a database and does not replace persistence.
+- `BootstrapRunner` preserves generator order; do not add rollback, priorities, dependencies, or parallelism without a feature that justifies them.

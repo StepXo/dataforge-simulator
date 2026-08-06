@@ -3,6 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from dataforge.api.routes.simulations import event_store
 from dataforge.main import app
 
 client = TestClient(app)
@@ -44,6 +45,26 @@ def test_same_request_produces_identical_response() -> None:
     second_response = client.post("/simulations/preview", json=VALID_REQUEST)
 
     assert first_response.json() == second_response.json()
+
+
+def test_preview_stores_one_entity_created_event_per_entity() -> None:
+    event_store.clear()
+
+    response = client.post("/simulations/preview", json=VALID_REQUEST)
+
+    assert response.status_code == 200
+    assert event_store.count() == VALID_REQUEST["entity_count"]
+    assert all(
+        event.event_type == "EntityCreated" for event in event_store.all_events()
+    )
+    assert [event.payload for event in event_store.all_events()] == [
+        {
+            "entity_id": entity["id"],
+            "activity_factor": entity["activity_factor"],
+        }
+        for entity in response.json()["entities"]
+    ]
+    event_store.clear()
 
 
 def test_different_seed_changes_entities() -> None:

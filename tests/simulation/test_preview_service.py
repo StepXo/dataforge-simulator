@@ -3,6 +3,8 @@
 from datetime import date
 from decimal import Decimal
 
+from dataforge.events.event_bus import EventBus
+from dataforge.events.event_store import EventStore
 from dataforge.simulation.models import SimulationPreviewConfig
 from dataforge.simulation.preview_service import SimulationPreviewService
 
@@ -16,8 +18,12 @@ def make_config(*, seed: int = 42, entity_count: int = 5) -> SimulationPreviewCo
     )
 
 
+def make_service() -> SimulationPreviewService:
+    return SimulationPreviewService(EventBus(EventStore()))
+
+
 def test_generates_requested_number_with_sequential_ids() -> None:
-    result = SimulationPreviewService().generate(make_config(entity_count=1000))
+    result = make_service().generate(make_config(entity_count=1000))
 
     assert len(result.entities) == 1000
     assert result.entities[0].id == "entity-001"
@@ -26,19 +32,19 @@ def test_generates_requested_number_with_sequential_ids() -> None:
 
 
 def test_period_days_include_both_dates() -> None:
-    result = SimulationPreviewService().generate(make_config())
+    result = make_service().generate(make_config())
 
     assert result.period.days == 7
 
 
 def test_same_configuration_produces_identical_result() -> None:
-    service = SimulationPreviewService()
+    service = make_service()
 
     assert service.generate(make_config()) == service.generate(make_config())
 
 
 def test_different_seed_changes_generated_entities() -> None:
-    service = SimulationPreviewService()
+    service = make_service()
 
     assert (
         service.generate(make_config(seed=42)).entities
@@ -47,7 +53,7 @@ def test_different_seed_changes_generated_entities() -> None:
 
 
 def test_activity_factors_are_in_range_and_have_at_most_two_decimals() -> None:
-    result = SimulationPreviewService().generate(make_config(entity_count=1000))
+    result = make_service().generate(make_config(entity_count=1000))
 
     assert all(0.50 <= entity.activity_factor <= 1.50 for entity in result.entities)
     assert all(
