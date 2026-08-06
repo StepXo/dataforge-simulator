@@ -6,3 +6,4 @@
 - Do not add dependencies or abstractions unless the current feature requires them.
 - Update tests and `README.md` whenever behavior changes.
 - Never report a validation as passing unless it was actually executed successfully.
+- Never add distributed infrastructure to the event system without a feature that justifies it.

@@ -129,6 +129,21 @@ La API responde HTTP 422 ante campos ausentes o tipos inv?lidos, semillas fuera 
 `0..4294967295`, cantidades fuera de `1..1000` o una fecha final anterior a la
 inicial.
 
+## Domain Events
+
+Un Domain Event representa algo que ya ocurri? dentro de la aplicaci?n. Cada evento
+contiene un UUID, un tipo, una marca de tiempo y un payload tipado.
+
+El `EventBus` es s?ncrono y funciona exclusivamente en memoria: primero guarda cada
+evento y luego llama a los handlers registrados para su tipo. El `EventStore`
+mantiene temporalmente los eventos durante la vida del proceso y permite
+consultarlos, contarlos y limpiarlos; no utiliza persistencia.
+
+Actualmente existe un solo evento, `EntityCreated`. El preview publica uno por cada
+entidad gen?rica generada con su identificador y factor de actividad. Un handler lo
+registra en la consola mediante el sistema est?ndar de logging. Los eventos son
+infraestructura interna y no forman parte de la respuesta HTTP.
+
 ## Calidad y pruebas
 
 ```bash
