@@ -283,6 +283,19 @@ taqueria.yaml -> load_product_catalog() -> ProductCatalogDefinition
                -> ProductGenerator -> categories / products -> SimulationState
 ```
 
+## Customer Bootstrap
+
+`CustomerGenerator` crea durante bootstrap una población inicial reproducible y no
+genera compras. Cada cliente referencia ciudades, regiones y locations existentes,
+y conserva segmento, frecuencia base mensual, canal preferido, sensibilidad a
+promociones y factor de actividad para futuros engines.
+
+```text
+GeographyGenerator -> locations -> CustomerGenerator -> customers -> SimulationState
+```
+
+`CustomerGenerator` no es `CustomerBehaviorEngine`: no ejecuta comportamiento por
+tick ni crea transacciones.
 ## Calidad y pruebas
 
 ```bash

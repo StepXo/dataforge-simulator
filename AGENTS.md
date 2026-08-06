@@ -38,3 +38,9 @@
 - ProductGenerator is bootstrap logic, not a per-tick engine.
 - Store Product before publishing ProductCreated.
 - Do not introduce dynamic pricing into bootstrap.
+- CustomerGenerator is bootstrap and never generates transactions.
+- A future CustomerBehaviorEngine owns per-tick customer behavior.
+- Customers must reference existing geography.
+- Do not add personal data without a feature that requires it.
+- All customer randomness uses RandomEngine.
+- Store Customer before publishing CustomerCreated.
