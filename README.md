@@ -144,6 +144,21 @@ entidad gen?rica generada con su identificador y factor de actividad. Un handler
 registra en la consola mediante el sistema est?ndar de logging. Los eventos son
 infraestructura interna y no forman parte de la respuesta HTTP.
 
+## Core Domain
+
+El Core Domain define el lenguaje b?sico compartido sin depender de HTTP,
+persistencia ni motores concretos. `Entity` es la base inmutable para cualquier
+objeto identificable y contiene solamente un UUID, su fecha de creaci?n y metadata
+opcional. `Identifier` representa un identificador basado en UUID.
+
+`DateRange` representa un periodo calendario v?lido y calcula su duraci?n inclusiva.
+`SimulationContext` agrupa la semilla, el rango de fechas, el generador aleatorio y
+el bus de eventos utilizados durante una ejecuci?n. El preview existente utiliza
+estas abstracciones sin modificar su contrato HTTP.
+
+Definir primero este n?cleo mantiene consistentes las primitivas compartidas y evita
+acoplar las simulaciones a transporte, almacenamiento o infraestructura externa.
+
 ## Calidad y pruebas
 
 ```bash

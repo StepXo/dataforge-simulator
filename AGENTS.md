@@ -7,3 +7,4 @@
 - Update tests and `README.md` whenever behavior changes.
 - Never report a validation as passing unless it was actually executed successfully.
 - Never add distributed infrastructure to the event system without a feature that justifies it.
+- Every new simulation engine must depend only on `SimulationContext` and the Core Domain; it must never access external components directly.
