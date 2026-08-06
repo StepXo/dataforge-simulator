@@ -1,0 +1,28 @@
+currency: COP
+categories:
+  - {id: tacos, name: Tacos}
+  - {id: combos, name: Combos}
+  - {id: beverages, name: Beverages}
+  - {id: sides, name: Sides}
+  - {id: desserts, name: Desserts}
+products:
+  - {id: taco-al-pastor, name: Taco al Pastor, category_id: tacos, base_price: 12000.00, base_cost: 5500.00}
+  - {id: taco-beef, name: Taco de Res, category_id: tacos, base_price: 13000.00, base_cost: 6200.00}
+  - {id: taco-chicken, name: Taco de Pollo, category_id: tacos, base_price: 11000.00, base_cost: 4800.00}
+  - {id: taco-vegetarian, name: Taco Vegetariano, category_id: tacos, base_price: 10000.00, base_cost: 4000.00}
+  - {id: taco-carnitas, name: Taco de Carnitas, category_id: tacos, base_price: 12500.00, base_cost: 5700.00}
+  - {id: combo-individual, name: Combo Individual, category_id: combos, base_price: 25000.00, base_cost: 11500.00}
+  - {id: combo-double, name: Combo Doble, category_id: combos, base_price: 42000.00, base_cost: 19500.00}
+  - {id: combo-family, name: Combo Familiar, category_id: combos, base_price: 76000.00, base_cost: 35000.00}
+  - {id: drink-water, name: Agua, category_id: beverages, base_price: 5000.00, base_cost: 1800.00}
+  - {id: drink-soda, name: Gaseosa, category_id: beverages, base_price: 6500.00, base_cost: 2500.00}
+  - {id: drink-lemonade, name: Limonada, category_id: beverages, base_price: 8000.00, base_cost: 3000.00}
+  - {id: drink-horchata, name: Horchata, category_id: beverages, base_price: 9000.00, base_cost: 3500.00}
+  - {id: side-nachos, name: Nachos, category_id: sides, base_price: 14000.00, base_cost: 6000.00}
+  - {id: side-guacamole, name: Guacamole, category_id: sides, base_price: 10000.00, base_cost: 4200.00}
+  - {id: side-fries, name: Papas, category_id: sides, base_price: 9000.00, base_cost: 3500.00}
+  - {id: side-beans, name: Frijoles, category_id: sides, base_price: 8500.00, base_cost: 3000.00}
+  - {id: dessert-churros, name: Churros, category_id: desserts, base_price: 9000.00, base_cost: 3200.00}
+  - {id: dessert-flan, name: Flan, category_id: desserts, base_price: 10000.00, base_cost: 3800.00}
+  - {id: dessert-cake, name: Pastel de Tres Leches, category_id: desserts, base_price: 12000.00, base_cost: 4600.00}
+  - {id: dessert-ice-cream, name: Helado, category_id: desserts, base_price: 8000.00, base_cost: 2800.00}

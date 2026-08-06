@@ -33,3 +33,8 @@
 - Only synthetic Location characteristics use RandomEngine.
 - GeographyGenerator is bootstrap logic and must never run per tick.
 - Store each entity before publishing its creation event.
+- ProductGenerator must never hardcode catalogs; concrete catalogs belong in configuration.
+- Represent money with Decimal, never float.
+- ProductGenerator is bootstrap logic, not a per-tick engine.
+- Store Product before publishing ProductCreated.
+- Do not introduce dynamic pricing into bootstrap.

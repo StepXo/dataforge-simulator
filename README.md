@@ -270,6 +270,18 @@ colombia.yaml -> load_geography() -> GeographyDefinition
 ```
 
 This generator runs during bootstrap, never once per tick.
+## Product Bootstrap
+
+El catálogo proviene de YAML y `ProductGenerator` no conoce un negocio concreto.
+`configs/products/taqueria.yaml` contiene categorías y productos con precios y
+costos `Decimal`. El generator calcula `base_margin` como proporción redondeada a
+cuatro decimales y genera un `activity_factor` reproducible desde la seed. Se
+ejecuta durante bootstrap y no genera ventas ni inventario.
+
+```text
+taqueria.yaml -> load_product_catalog() -> ProductCatalogDefinition
+               -> ProductGenerator -> categories / products -> SimulationState
+```
 
 ## Calidad y pruebas
 
