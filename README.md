@@ -296,6 +296,23 @@ GeographyGenerator -> locations -> CustomerGenerator -> customers -> SimulationS
 
 `CustomerGenerator` no es `CustomerBehaviorEngine`: no ejecuta comportamiento por
 tick ni crea transacciones.
+## Inventory Bootstrap
+
+`InventoryBootstrapGenerator` crea el stock inicial antes de los ticks. Cada
+`InventoryItem` representa una combinación Product x Location y no un movimiento
+histórico. La disponibilidad y cantidades son reproducibles; el cálculo pondera la
+variación aleatoria, la capacidad de `Location` y el `activity_factor` de Product.
+El futuro `InventoryEngine` será responsable de modificar este estado.
+
+```text
+locations + products
+        ↓
+InventoryBootstrapGenerator
+        ↓
+inventory
+        ↓
+SimulationState
+```
 ## Calidad y pruebas
 
 ```bash

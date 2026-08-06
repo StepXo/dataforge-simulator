@@ -44,3 +44,8 @@
 - Do not add personal data without a feature that requires it.
 - All customer randomness uses RandomEngine.
 - Store Customer before publishing CustomerCreated.
+- InventoryBootstrapGenerator only creates initial state; never generate movements during bootstrap.
+- All dynamic stock changes belong to a future InventoryEngine.
+- Inventory requires Geography and Product bootstrap first.
+- All inventory randomness uses RandomEngine.
+- Store InventoryItem before publishing InventoryItemCreated.
