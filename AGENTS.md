@@ -16,3 +16,8 @@
 - Every engine in a tick must observe the same time and tick index.
 - A tick does not limit how many actions an engine can generate.
 - Do not add engine priorities, dependencies, concurrency, or retries without a feature that justifies them.
+- Initial master data must be created by `BootstrapGenerator`, never by a per-tick engine.
+- Bootstrap generators do not receive `SimulationClock`, and engines must not recreate master data each tick.
+- All shared execution state belongs in `SimulationState`; never use global state or singletons.
+- `SimulationState` is not a database and does not replace persistence.
+- `BootstrapRunner` preserves generator order; do not add rollback, priorities, dependencies, or parallelism without a feature that justifies them.

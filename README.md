@@ -188,6 +188,29 @@ Las seis ejecuciones pueden generar cualquier cantidad de acciones internas. Est
 versi?n define y prueba el ciclo de ejecuci?n, pero todav?a no contiene engines
 concretos ni integraci?n con la API o la CLI.
 
+## Simulation State and Bootstrap
+
+`SimulationState` representa el estado compartido que vive exclusivamente en
+memoria durante una ejecuci?n. Organiza colecciones por nombre sin crear categor?as
+de dominio por adelantado. Cada `StateCollection` almacena valores tipados mediante
+claves ?nicas y conserva su orden de inserci?n.
+
+Estado y eventos tienen responsabilidades diferentes: el estado describe lo que
+existe actualmente, mientras un evento registra algo que ocurri?. El estado no es
+una base de datos y no existe persistencia en esta versi?n.
+
+Un `BootstrapGenerator` prepara una parte del estado antes del primer tick.
+`BootstrapRunner` ejecuta esos generadores una vez cada uno y en el orden recibido,
+compartiendo el mismo contexto. Durante los ticks, los engines podr?n consultar y
+actualizar ese estado. Todav?a no existen generadores concretos.
+
+```text
+BootstrapRunner
+    -> SimulationState inicial
+    -> SimulationOrchestrator
+    -> Estado actualizado durante los ticks
+```
+
 ## Calidad y pruebas
 
 ```bash
