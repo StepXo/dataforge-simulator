@@ -21,3 +21,8 @@
 - All shared execution state belongs in `SimulationState`; never use global state or singletons.
 - `SimulationState` is not a database and does not replace persistence.
 - `BootstrapRunner` preserves generator order; do not add rollback, priorities, dependencies, or parallelism without a feature that justifies them.
+- `TimeEngine` never advances the clock; only the orchestrator may do so.
+- Run `TimeEngine` before engines that depend on temporal context.
+- Engines share results through `SimulationState`; temporal context uses key `tick-{tick_index}`.
+- Day names must not depend on the system locale, and ticks do not limit generated actions.
+- Concrete engines must not know FastAPI, the CLI, or persistence.

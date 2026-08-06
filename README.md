@@ -211,6 +211,37 @@ BootstrapRunner
     -> Estado actualizado durante los ticks
 ```
 
+## Time Engine
+
+`TimeEngine` es el primer simulation engine concreto. Se ejecuta una vez por tick,
+interpreta el `SimulationClock` y crea un `TemporalContext` inmutable sin avanzar el
+reloj. Conserva un contexto por tick en la colecci?n `temporal_context` de
+`SimulationState` y publica un evento `TimeContextGenerated` despu?s de almacenarlo.
+
+```text
+SimulationClock
+    -> TimeEngine
+    -> TemporalContext
+        -> SimulationState
+        -> TimeContextGenerated
+```
+
+Los engines posteriores pueden consultar este contexto siempre que aparezcan
+despu?s de `TimeEngine` en el orden expl?cito del orquestador. Actualmente se
+interpretan ticks diarios y horarios, sin festivos ni reglas comerciales. Un
+contexto temporal no representa una venta:
+
+```text
+1 tick
+1 ejecuci?n de TimeEngine
+1 TemporalContext
+
+El mismo tick podr?a producir posteriormente:
+40 ventas
+95 detalles de venta
+95 movimientos de inventario
+```
+
 ## Calidad y pruebas
 
 ```bash
