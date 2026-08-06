@@ -1,11 +1,11 @@
 """Tests for core domain value objects."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
 import pytest
 
-from dataforge.core.value_objects import DateRange, Identifier
+from dataforge.core.value_objects import DateRange, Identifier, TimeRange
 
 
 def test_identifier_generates_uuid() -> None:
@@ -51,4 +51,47 @@ def test_date_range_rejects_end_before_start() -> None:
         DateRange(
             start_date=date(2026, 1, 2),
             end_date=date(2026, 1, 1),
+        )
+
+
+def test_time_range_preserves_single_naive_instant() -> None:
+    instant = datetime(2026, 1, 1, 8)
+
+    time_range = TimeRange(start=instant, end=instant)
+
+    assert time_range.start is instant
+    assert time_range.end is instant
+
+
+def test_time_range_allows_two_naive_datetimes() -> None:
+    time_range = TimeRange(
+        start=datetime(2026, 1, 1, 8),
+        end=datetime(2026, 1, 1, 10),
+    )
+
+    assert time_range.end > time_range.start
+
+
+def test_time_range_allows_two_aware_datetimes() -> None:
+    time_range = TimeRange(
+        start=datetime(2026, 1, 1, 8, tzinfo=UTC),
+        end=datetime(2026, 1, 1, 10, tzinfo=UTC),
+    )
+
+    assert time_range.end > time_range.start
+
+
+def test_time_range_rejects_end_before_start() -> None:
+    with pytest.raises(ValueError, match="end must be on or after start"):
+        TimeRange(
+            start=datetime(2026, 1, 1, 10),
+            end=datetime(2026, 1, 1, 8),
+        )
+
+
+def test_time_range_rejects_mixed_timezone_awareness() -> None:
+    with pytest.raises(ValueError, match="timezone-aware or both naive"):
+        TimeRange(
+            start=datetime(2026, 1, 1, 8, tzinfo=UTC),
+            end=datetime(2026, 1, 1, 10),
         )

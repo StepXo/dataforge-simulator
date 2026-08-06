@@ -159,6 +159,35 @@ estas abstracciones sin modificar su contrato HTTP.
 Definir primero este n?cleo mantiene consistentes las primitivas compartidas y evita
 acoplar las simulaciones a transporte, almacenamiento o infraestructura externa.
 
+## Simulation Runtime Contracts
+
+`SimulationClock` representa el estado temporal determinista de una ejecuci?n. Usa
+un `TimeRange` inclusivo y una granularidad configurable sin superar el instante
+final.
+
+`SimulationEngine` es un protocolo estructural con un ?nico m?todo `execute`, que
+recibe el `SimulationContext` compartido y el `SimulationClock`. Todos los motores
+concretos compartir?n este contrato, pero esta versi?n todav?a no implementa ning?n
+motor ni orquestador.
+
+## Simulation Runtime
+
+Un tick es una unidad de avance temporal, no una acci?n ni una transacci?n.
+`TickUnit.DAY` avanza un d?a y `TickUnit.HOUR` avanza una hora. Dentro de un mismo
+tick, un engine puede producir cero, una o muchas acciones.
+
+`SimulationClock` conserva el instante y el ?ndice actuales. El
+`SimulationOrchestrator` ejecuta todos los engines una vez por tick, preservando su
+orden, y solo entonces avanza el reloj. Por ejemplo:
+
+```text
+3 ticks x 2 engines = 6 engine executions
+```
+
+Las seis ejecuciones pueden generar cualquier cantidad de acciones internas. Esta
+versi?n define y prueba el ciclo de ejecuci?n, pero todav?a no contiene engines
+concretos ni integraci?n con la API o la CLI.
+
 ## Calidad y pruebas
 
 ```bash
