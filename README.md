@@ -22,6 +22,54 @@ uv run uvicorn dataforge.main:app --reload
 
 La documentaci?n OpenAPI queda disponible en `http://127.0.0.1:8000/docs`.
 
+## Developer CLI
+
+La CLI agrupa las operaciones locales habituales. Puede ejecutarse a trav?s de
+`uv`:
+
+```bash
+uv run dataforge setup
+uv run dataforge run
+uv run dataforge test
+uv run dataforge lint
+uv run dataforge format
+uv run dataforge typecheck
+uv run dataforge check
+uv run dataforge dev --test
+uv run dataforge dev --check
+```
+
+| Comando | Prop?sito |
+| --- | --- |
+| `setup` | Sincroniza el entorno y las dependencias de desarrollo. |
+| `run` | Inicia la API con recarga autom?tica. |
+| `test` | Ejecuta Pytest y permite reenviar argumentos despu?s de `--`. |
+| `lint` | Comprueba el c?digo con Ruff; `--fix` aplica correcciones. |
+| `format` | Comprueba el formato; `--write` aplica cambios. |
+| `typecheck` | Comprueba los tipos de `src` con mypy. |
+| `check` | Ejecuta formato, lint, tipos y pruebas como las validaciones principales de CI. |
+| `dev` | Inicia la API; `--test` o `--check` validan antes de iniciarla. |
+
+`setup` prepara el entorno, `run` solo inicia la API, `check` reproduce localmente
+las validaciones principales de CI y `dev --check` valida antes de iniciar la API.
+
+Despu?s de activar el entorno virtual o instalar el proyecto en modo editable,
+tambi?n se puede omitir `uv run`:
+
+```bash
+dataforge run
+dataforge check
+```
+
+Ejemplos adicionales:
+
+```bash
+uv run dataforge run --host 127.0.0.1 --port 8080 --no-reload
+uv run dataforge test -- -k preview
+uv run dataforge lint --fix
+uv run dataforge format --write
+```
+
 ## Endpoints
 
 ### `GET /ping`
