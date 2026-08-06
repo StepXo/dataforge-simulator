@@ -313,6 +313,22 @@ inventory
         ↓
 SimulationState
 ```
+## Promotion Bootstrap
+
+`PromotionBootstrapGenerator` crea un calendario inicial reproducible y no aplica
+promociones. Cada `Promotion` tiene periodo, target, canal, descuento proporcional
+y demand lift potencial dentro de `SimulationState`. El futuro `PromotionEngine`
+decidirá cuáles están activas en cada tick.
+
+```text
+products + geography
+        ↓
+PromotionBootstrapGenerator
+        ↓
+promotions
+        ↓
+SimulationState
+```
 ## Calidad y pruebas
 
 ```bash

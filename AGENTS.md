@@ -49,3 +49,8 @@
 - Inventory requires Geography and Product bootstrap first.
 - All inventory randomness uses RandomEngine.
 - Store InventoryItem before publishing InventoryItemCreated.
+- PromotionBootstrapGenerator only creates the calendar; never apply discounts during bootstrap.
+- A future PromotionEngine decides activation per tick.
+- A future DemandEngine consumes demand_lift.
+- All promotion randomness uses RandomEngine.
+- Store Promotion before publishing PromotionCreated.
