@@ -17,6 +17,7 @@ from dataforge.engines.demand.models import DemandContext, DemandRecord
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
 from dataforge.geography.models import Location
+from dataforge.inventory.models import InventoryItem
 from dataforge.products.models import Product
 from dataforge.promotions.models import PromotionChannel, PromotionTargetType
 
@@ -58,6 +59,18 @@ class CustomerBehaviorEngine:
             product.id: product
             for product in self._typed_collection(context, "products", Product)
         }
+        inventory = self._typed_collection(context, "inventory", InventoryItem)
+        assortment: dict[tuple[str, str], InventoryItem] = {}
+        for item in inventory:
+            if not item.active:
+                continue
+            key = (item.location_id, item.product_id)
+            if key in assortment:
+                raise ValueError(
+                    "Multiple active InventoryItems exist for commercial combination: "
+                    f"{item.location_id}/{item.product_id}"
+                )
+            assortment[key] = item
         temporal = self._tick_context(
             context, "temporal_context", clock.tick_index, TemporalContext
         )
@@ -78,6 +91,12 @@ class CustomerBehaviorEngine:
                     "Demand references unknown location or product: "
                     f"{record.location_id}/{record.product_id}"
                 )
+            if (
+                location.id,
+                product.id,
+            ) not in assortment or location.opened_at > temporal.current_time.date():
+                unassigned += record.requested_units
+                continue
             eligible = tuple(
                 customer
                 for customer in customers
@@ -211,6 +230,8 @@ def _is_eligible(
         customer.active
         and customer.segment is not CustomerSegment.INACTIVE
         and customer.registered_at <= temporal.current_time.date()
+        and location.opened_at <= temporal.current_time.date()
+        and customer.home_city_id == location.city_id
         and customer.home_region_id == location.region_id
     )
 

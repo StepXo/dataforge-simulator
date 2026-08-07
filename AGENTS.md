@@ -64,3 +64,8 @@
 - Customer behavior must preserve assigned units plus unassigned units equal to demand.
 - All customer behavior randomness uses RandomEngine and stable iteration order.
 - Store CustomerBehaviorContext before publishing its event.
+- Never assume a global Product is offered at every Location; InventoryItem defines the Location × Product assortment.
+- Zero stock means offered but out of stock, not absent from the assortment.
+- No commercial activity may occur before Location.opened_at.
+- CustomerBehavior fulfillment is same-city only in the MVP.
+- PurchaseIntent.location_id is the fulfillment Location.

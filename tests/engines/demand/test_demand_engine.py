@@ -34,7 +34,11 @@ from dataforge.products.models import Product
 from dataforge.promotions.models import PromotionChannel, PromotionTargetType
 
 
-def location(identifier: str = "location-a", activity: float = 1.5) -> Location:
+def location(
+    identifier: str = "location-a",
+    activity: float = 1.5,
+    opened_at: date = date(2020, 1, 1),
+) -> Location:
     return Location(
         identifier,
         identifier,
@@ -44,7 +48,7 @@ def location(identifier: str = "location-a", activity: float = 1.5) -> Location:
         "country-a",
         100,
         activity,
-        date(2020, 1, 1),
+        opened_at,
     )
 
 
@@ -86,8 +90,9 @@ def prepare_state(
     inventory_active: bool = True,
     product_active: bool = True,
     stock: int = 10,
+    opened_at: date = date(2020, 1, 1),
 ) -> None:
-    item_location = location()
+    item_location = location(opened_at=opened_at)
     item_product = product(active=product_active)
     context.state.create_collection("locations").add(item_location.id, item_location)
     context.state.create_collection("products").add(item_product.id, item_product)
@@ -250,6 +255,21 @@ def test_engine_filters_inactive_items_but_keeps_zero_stock(
     assert (
         context.state.collection("inventory").require("inventory-a").current_stock == 0
     )
+
+
+def test_future_location_does_not_generate_demand() -> None:
+    context, clock, _ = runtime()
+    prepare_state(
+        context,
+        TemporalContext(0, clock.current_time, TickUnit.HOUR),
+        PromotionContext(0, clock.current_time, ()),
+        opened_at=date(2026, 8, 16),
+    )
+    DemandEngine().execute(context, clock)
+    result = context.state.collection("demand_context").require("tick-0")
+    assert isinstance(result, DemandContext)
+    assert result.demands == ()
+    assert result.total_requested_units == 0
 
 
 def test_maximum_units_save_before_publish_and_duplicate_execution() -> None:

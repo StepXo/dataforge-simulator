@@ -30,23 +30,29 @@ from dataforge.engines.time.models import TemporalContext
 from dataforge.events.event_bus import EventBus
 from dataforge.events.event_store import EventStore
 from dataforge.geography.models import Location
+from dataforge.inventory.models import InventoryItem
 from dataforge.products.models import Product
 from dataforge.promotions.models import PromotionChannel, PromotionTargetType
 
 NOW = datetime(2026, 8, 15, 12)
 
 
-def location(identifier: str = "location-a", region: str = "region-a") -> Location:
+def location(
+    identifier: str = "location-a",
+    region: str = "region-a",
+    city: str = "city-a",
+    opened_at: date = date(2020, 1, 1),
+) -> Location:
     return Location(
         identifier,
         "A",
-        "city-a",
+        city,
         "area-a",
         region,
         "country-a",
         100,
         1.0,
-        date(2020, 1, 1),
+        opened_at,
     )
 
 
@@ -71,6 +77,7 @@ def customer(
     active: bool = True,
     registered_at: date = date(2020, 1, 1),
     region: str = "region-a",
+    home_city: str = "city-a",
     preferred_location: str = "location-a",
     preferred_channel: PreferredChannel = PreferredChannel.MOBILE,
     frequency: float = 2.0,
@@ -79,7 +86,7 @@ def customer(
 ) -> Customer:
     return Customer(
         identifier,
-        "city-a",
+        home_city,
         region,
         preferred_location,
         segment,
@@ -106,6 +113,8 @@ def runtime(
     customers: tuple[Customer, ...] | None = None,
     demand_units: int = 8,
     item_location: Location | None = None,
+    extra_locations: tuple[Location, ...] = (),
+    inventory_items: tuple[InventoryItem, ...] | None = None,
     promotions: tuple[ActivePromotion, ...] = (),
 ) -> tuple[SimulationContext, SimulationClock, EventStore]:
     store = EventStore()
@@ -118,10 +127,22 @@ def runtime(
     clock = SimulationClock(TimeRange(NOW, NOW), TickUnit.HOUR)
     selected_location = item_location or location()
     selected_product = product()
+    selected_inventory = inventory_items or (
+        InventoryItem(
+            "inventory-a",
+            selected_location.id,
+            selected_product.id,
+            0,
+            0,
+            10,
+            True,
+        ),
+    )
     collections = {
         "customers": customers or (customer(),),
-        "locations": (selected_location,),
+        "locations": (selected_location, *extra_locations),
         "products": (selected_product,),
+        "inventory": selected_inventory,
         "temporal_context": (TemporalContext(0, NOW, TickUnit.HOUR),),
         "promotion_context": (PromotionContext(0, NOW, promotions),),
         "demand_context": (
@@ -335,6 +356,139 @@ def test_assignment_conserves_units_limits_quantities_and_publishes_after_save()
     event = store.all_events()[-1]
     assert event.event_type == "CustomerBehaviorContextGenerated"
     assert event.payload["total_requested_units"] == 11
+
+
+@pytest.mark.parametrize(
+    "channel", (PreferredChannel.PHYSICAL, PreferredChannel.MOBILE)
+)
+def test_same_region_different_city_is_not_eligible(
+    channel: PreferredChannel,
+) -> None:
+    medellin = location("location-medellin", region="region-andean", city="medellin")
+    bogota_customer = customer(
+        region="region-andean",
+        home_city="bogota",
+        preferred_location="location-medellin",
+        preferred_channel=channel,
+    )
+    context, clock, _ = runtime(
+        customers=(bogota_customer,), item_location=medellin, demand_units=5
+    )
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert result.intents == ()
+    assert result.unassigned_demand_units == 5
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        InventoryItem(
+            "inventory-other", "location-other", "product-a", 10, 0, 20, True
+        ),
+        InventoryItem(
+            "inventory-inactive", "location-a", "product-a", 10, 0, 20, False
+        ),
+    ],
+)
+def test_product_not_offered_leaves_demand_unassigned(item: InventoryItem) -> None:
+    context, clock, _ = runtime(inventory_items=(item,), demand_units=4)
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert result.intents == ()
+    assert result.unassigned_demand_units == 4
+
+
+def test_out_of_stock_assortment_still_allows_intent() -> None:
+    context, clock, _ = runtime(demand_units=4)
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert result.total_requested_units == 4
+    assert result.unassigned_demand_units == 0
+    assert (
+        context.state.collection("inventory").require("inventory-a").current_stock == 0
+    )
+
+
+@pytest.mark.parametrize(
+    "preferred_opened_at,channel",
+    [
+        (date(2020, 1, 1), PreferredChannel.MOBILE),
+        (date(2026, 8, 16), PreferredChannel.PHYSICAL),
+    ],
+)
+def test_invalid_preferred_location_falls_back_within_same_city(
+    preferred_opened_at: date,
+    channel: PreferredChannel,
+) -> None:
+    fallback = location("location-medellin-south", city="medellin")
+    preferred = location(
+        "location-medellin-center",
+        city="medellin",
+        opened_at=preferred_opened_at,
+    )
+    shopper = customer(
+        home_city="medellin",
+        preferred_location=preferred.id,
+        preferred_channel=channel,
+    )
+    assortment = InventoryItem(
+        "inventory-fallback", fallback.id, "product-a", 0, 0, 10, True
+    )
+    context, clock, _ = runtime(
+        customers=(shopper,),
+        item_location=fallback,
+        extra_locations=(preferred,),
+        inventory_items=(assortment,),
+        demand_units=3,
+    )
+    CustomerBehaviorEngine(
+        CustomerBehaviorEngineConfig(preferred_channel_bonus=1_000_000)
+    ).execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert result.intents
+    assert all(intent.location_id == fallback.id for intent in result.intents)
+    assert all(intent.channel is channel for intent in result.intents)
+
+
+def test_future_demand_location_is_not_assigned() -> None:
+    future = location("location-future", opened_at=date(2026, 8, 16))
+    context, clock, _ = runtime(item_location=future, demand_units=6)
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert result.intents == ()
+    assert result.unassigned_demand_units == 6
+
+
+def test_generated_intents_satisfy_commercial_invariants() -> None:
+    shopper = customer(home_city="city-a", region="region-a")
+    context, clock, _ = runtime(customers=(shopper,), demand_units=7)
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    locations = {item.id: item for item in context.state.collection("locations").all()}
+    customers = {item.id: item for item in context.state.collection("customers").all()}
+    inventory = context.state.collection("inventory").all()
+    for intent in result.intents:
+        selected_location = locations[intent.location_id]
+        selected_customer = customers[intent.customer_id]
+        assert isinstance(selected_location, Location)
+        assert isinstance(selected_customer, Customer)
+        assert selected_location.opened_at <= NOW.date()
+        assert selected_location.city_id == selected_customer.home_city_id
+        assert selected_location.region_id == selected_customer.home_region_id
+        assert any(
+            isinstance(item, InventoryItem)
+            and item.active
+            and item.location_id == intent.location_id
+            and item.product_id == intent.product_id
+            for item in inventory
+        )
 
 
 def test_zero_demand_creates_context_without_intents() -> None:

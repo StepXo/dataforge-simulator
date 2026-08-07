@@ -375,6 +375,13 @@ asociarse a un cliente.
 
 El engine no crea ventas, no calcula precios y no comprueba ni descuenta stock. En
 cada tick se conserva la igualdad `assigned + unassigned = demand`.
+`PurchaseIntent.location_id` identifica la Location de fulfillment y, en este MVP,
+solo puede pertenecer a la misma ciudad y región del cliente y estar abierta.
+
+`InventoryItem` define el surtido comercial Location × Product: si no existe, el
+producto no se ofrece en esa sede. Si existe activo con `current_stock = 0`, el
+producto sí se ofrece pero está agotado; la intención de compra continúa siendo
+válida para poder medir demanda perdida posteriormente.
 
 ```text
 DemandEngine

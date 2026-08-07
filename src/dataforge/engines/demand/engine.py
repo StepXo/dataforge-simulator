@@ -80,6 +80,8 @@ class DemandEngine:
                 raise ValueError(f"Inventory references unknown location: {item.id}")
             if product is None:
                 raise ValueError(f"Inventory references unknown product: {item.id}")
+            if location.opened_at > temporal.current_time.date():
+                continue
             if not product.active:
                 continue
             base_demand = context.random_engine.uniform(
