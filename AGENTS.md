@@ -60,3 +60,7 @@
 - DemandEngine never generates sales or reduces inventory; zero stock does not imply zero demand.
 - All demand randomness uses RandomEngine and inventory iteration order must remain stable.
 - DemandEngine requires TimeEngine followed by PromotionEngine and stores before publishing.
+- CustomerBehaviorEngine generates purchase intents, never sales, and never mutates Customer or inventory.
+- Customer behavior must preserve assigned units plus unassigned units equal to demand.
+- All customer behavior randomness uses RandomEngine and stable iteration order.
+- Store CustomerBehaviorContext before publishing its event.

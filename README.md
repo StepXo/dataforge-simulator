@@ -364,6 +364,27 @@ DemandEngine
    ↓
 DemandContext
 ```
+## Customer Behavior Engine
+
+`CustomerBehaviorEngine` se ejecuta después de `DemandEngine`. Consume el
+`DemandContext` del tick y asigna sus unidades a clientes elegibles mediante pesos
+reproducibles basados en segmento, frecuencia de compra, factor de actividad,
+location preferida, canal preferido y sensibilidad a promociones. Produce
+`PurchaseIntent` y conserva como demanda no asignada cualquier unidad que no pueda
+asociarse a un cliente.
+
+El engine no crea ventas, no calcula precios y no comprueba ni descuenta stock. En
+cada tick se conserva la igualdad `assigned + unassigned = demand`.
+
+```text
+DemandEngine
+    ↓
+DemandContext
+    ↓
+CustomerBehaviorEngine
+    ↓
+PurchaseIntents
+```
 ## Calidad y pruebas
 
 ```bash
