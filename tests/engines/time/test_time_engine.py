@@ -5,6 +5,9 @@ from datetime import date, datetime
 import pytest
 
 from dataforge.core.engine import SimulationEngine
+from dataforge.core.events.event import DomainEvent
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -13,9 +16,6 @@ from dataforge.core.value_objects import DateRange, TimeRange
 from dataforge.engines.time.engine import TimeEngine
 from dataforge.engines.time.events import TimeContextGenerated
 from dataforge.engines.time.models import TemporalContext
-from dataforge.events.event import DomainEvent
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
 
 
 def make_runtime() -> tuple[SimulationContext, SimulationClock, EventStore]:

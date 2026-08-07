@@ -4,6 +4,7 @@ from dataclasses import replace as replace_dataclass
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.collection import StateCollection
 from dataforge.engines.inventory.events import (
     InventoryContextGenerated,
     InventoryMovementCreated,
@@ -24,8 +25,7 @@ from dataforge.engines.transaction.models import (
     TransactionLine,
     TransactionLineStatus,
 )
-from dataforge.inventory.models import InventoryItem
-from dataforge.state.collection import StateCollection
+from dataforge.generators.inventory.models import InventoryItem
 
 INVENTORY_CONTEXT_COLLECTION = "inventory_context"
 

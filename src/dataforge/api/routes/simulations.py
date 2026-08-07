@@ -4,14 +4,14 @@ import logging
 
 from fastapi import APIRouter
 
-from dataforge.events.event import DomainEvent
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.simulation.models import (
+from dataforge.core.events.event import DomainEvent
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
+from dataforge.runtime.models import (
     SimulationPreviewConfig,
     SimulationPreviewResponse,
 )
-from dataforge.simulation.preview_service import SimulationPreviewService
+from dataforge.runtime.preview_service import SimulationPreviewService
 
 router = APIRouter(prefix="/simulations", tags=["simulations"])
 logger = logging.getLogger(__name__)

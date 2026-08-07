@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.collection import StateCollection
 from dataforge.engines.inventory.events import InventoryMovementCreated
 from dataforge.engines.inventory.models import (
     InventoryContext,
@@ -24,8 +25,7 @@ from dataforge.engines.replenishment.models import (
     ReplenishmentStatus,
 )
 from dataforge.engines.time.models import TemporalContext
-from dataforge.inventory.models import InventoryItem
-from dataforge.state.collection import StateCollection
+from dataforge.generators.inventory.models import InventoryItem
 
 PENDING_COLLECTION = "pending_replenishments"
 CONTEXT_COLLECTION = "replenishment_context"

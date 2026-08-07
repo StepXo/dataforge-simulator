@@ -17,10 +17,10 @@ from dataforge.engines.time.models import (
     TimeOfDay,
     time_of_day_for_hour,
 )
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
-from dataforge.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
+from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
 
 DEMAND_CONTEXT_COLLECTION = "demand_context"
 

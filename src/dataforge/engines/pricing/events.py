@@ -1,7 +1,7 @@
 """Events published by the pricing engine."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.pricing.models import PricingContext
-from dataforge.events.event import DomainEvent
 
 
 class PricingContextGenerated(DomainEvent):

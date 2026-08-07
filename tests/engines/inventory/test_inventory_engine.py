@@ -6,12 +6,13 @@ from decimal import Decimal
 
 import pytest
 
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import DateRange, TimeRange
-from dataforge.customers.models import PreferredChannel
 from dataforge.engines.inventory.engine import InventoryEngine
 from dataforge.engines.inventory.models import (
     InventoryContext,
@@ -28,9 +29,8 @@ from dataforge.engines.transaction.models import (
     TransactionLineStatus,
     TransactionStatus,
 )
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.inventory.models import InventoryItem
+from dataforge.generators.customers.models import PreferredChannel
+from dataforge.generators.inventory.models import InventoryItem
 
 NOW = datetime(2026, 8, 15, 12)
 

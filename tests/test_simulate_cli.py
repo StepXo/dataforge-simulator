@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 from typer.testing import CliRunner
 
-from dataforge.cli import app
+from dataforge.cli.app import app
 from dataforge.scenario import load_scenario
 from tests.runtime.test_simulation_runner import scenario_file
 

@@ -1,12 +1,12 @@
 """Events emitted after inventory state and context are stored."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.inventory.models import (
     InventoryContext,
     InventoryMovement,
     OutOfStockSignal,
     ReorderSignal,
 )
-from dataforge.events.event import DomainEvent
 
 
 class InventoryMovementCreated(DomainEvent):

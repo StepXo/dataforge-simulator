@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
-from dataforge.customers.models import Customer, CustomerSegment, PreferredChannel
 from dataforge.engines.customer_behavior.events import CustomerBehaviorContextGenerated
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
@@ -16,10 +15,15 @@ from dataforge.engines.customer_behavior.models import (
 from dataforge.engines.demand.models import DemandContext, DemandRecord
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
-from dataforge.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.customers.models import (
+    Customer,
+    CustomerSegment,
+    PreferredChannel,
+)
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
+from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
 
 CUSTOMER_BEHAVIOR_CONTEXT_COLLECTION = "customer_behavior_context"
 

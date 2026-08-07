@@ -6,11 +6,11 @@ import pytest
 
 from dataforge.bootstrap.contracts import BootstrapGenerator
 from dataforge.bootstrap.runner import BootstrapRunner
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.value_objects import DateRange
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
 
 
 def make_context() -> SimulationContext:

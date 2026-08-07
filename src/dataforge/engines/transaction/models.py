@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from dataforge.customers.models import PreferredChannel
+from dataforge.generators.customers.models import PreferredChannel
 
 ZERO_MONEY = Decimal("0.00")
 

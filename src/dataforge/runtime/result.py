@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from dataforge.bootstrap.models import BootstrapRunSummary
+from dataforge.core.state.simulation_state import SimulationState
+from dataforge.runtime.orchestrator import SimulationRunSummary
 from dataforge.scenario.models import ScenarioDefinition
-from dataforge.simulation.orchestrator import SimulationRunSummary
-from dataforge.state.simulation_state import SimulationState
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from dataforge.main import app
+from dataforge.api.app import app
 from dataforge.runtime import SimulationRunner
 from tests.runtime.test_simulation_runner import scenario_file
 

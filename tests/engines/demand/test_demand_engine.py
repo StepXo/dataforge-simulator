@@ -8,6 +8,9 @@ import pytest
 from pydantic import ValidationError
 
 from dataforge.core.engine import SimulationEngine
+from dataforge.core.events.event import DomainEvent
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -26,13 +29,10 @@ from dataforge.engines.demand.events import DemandContextGenerated
 from dataforge.engines.demand.models import DemandContext, DemandRecord
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
-from dataforge.events.event import DomainEvent
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
-from dataforge.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
+from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
 
 
 def location(

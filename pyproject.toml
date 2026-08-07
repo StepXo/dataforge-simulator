@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-dataforge = "dataforge.cli:app"
+dataforge = "dataforge.cli.app:app"
 
 [dependency-groups]
 dev = [

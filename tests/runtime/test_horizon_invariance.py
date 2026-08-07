@@ -5,18 +5,18 @@ from pathlib import Path
 import yaml
 
 from dataforge.bootstrap.runner import BootstrapRunner
-from dataforge.configuration.geography.loader import load_geography
-from dataforge.configuration.products.loader import load_product_catalog
+from dataforge.config.geography.loader import load_geography
+from dataforge.config.products.loader import load_product_catalog
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.value_objects import DateRange
-from dataforge.customers.generator import CustomerGenerator
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.geography.generator import GeographyGenerator
-from dataforge.inventory.generator import InventoryBootstrapGenerator
-from dataforge.products.generator import ProductGenerator
-from dataforge.promotions.generator import PromotionBootstrapGenerator
+from dataforge.generators.customers.generator import CustomerGenerator
+from dataforge.generators.geography.generator import GeographyGenerator
+from dataforge.generators.inventory.generator import InventoryBootstrapGenerator
+from dataforge.generators.products.generator import ProductGenerator
+from dataforge.generators.promotions.generator import PromotionBootstrapGenerator
 from dataforge.runtime import SimulationRunner
 from dataforge.scenario import load_scenario
 from tests.runtime.test_simulation_runner import scenario_file

@@ -4,7 +4,6 @@ from collections import Counter
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
-from dataforge.customers.models import Customer
 from dataforge.engines.customer_behavior.models import CustomerBehaviorContext
 from dataforge.engines.demand.models import DemandContext
 from dataforge.engines.inventory.models import InventoryContext, InventoryMovementType
@@ -23,15 +22,16 @@ from dataforge.engines.transaction.models import (
 )
 from dataforge.engines.validation.events import StateValidationCompleted
 from dataforge.engines.validation.models import ValidationContext
-from dataforge.geography.models import (
+from dataforge.generators.customers.models import Customer
+from dataforge.generators.geography.models import (
     AdministrativeArea,
     City,
     Country,
     Location,
     Region,
 )
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Category, Product
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Category, Product
 
 VALIDATION_CONTEXT_COLLECTION = "validation_context"
 

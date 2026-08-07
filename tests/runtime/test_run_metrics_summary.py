@@ -3,9 +3,9 @@
 from datetime import datetime
 from decimal import Decimal
 
+from dataforge.core.state.simulation_state import SimulationState
 from dataforge.engines.metrics.models import MetricsContext
 from dataforge.runtime.summary import aggregate_run_metrics
-from dataforge.state.simulation_state import SimulationState
 
 
 def metrics(tick: int, value: int) -> MetricsContext:

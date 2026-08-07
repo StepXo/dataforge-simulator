@@ -8,12 +8,12 @@ import yaml
 from pydantic import ValidationError
 
 from dataforge.core.tick import TickUnit
-from dataforge.customers.generator import CustomerGenerationConfig
 from dataforge.engines.demand.engine import DemandEngineConfig
 from dataforge.engines.replenishment.engine import ReplenishmentEngineConfig
-from dataforge.geography.generator import LocationGenerationConfig
-from dataforge.inventory.generator import InventoryGenerationConfig
-from dataforge.promotions.generator import PromotionGenerationConfig
+from dataforge.generators.customers.generator import CustomerGenerationConfig
+from dataforge.generators.geography.generator import LocationGenerationConfig
+from dataforge.generators.inventory.generator import InventoryGenerationConfig
+from dataforge.generators.promotions.generator import PromotionGenerationConfig
 from dataforge.scenario import ScenarioDefinition, load_scenario
 
 PROJECT_ROOT = Path(__file__).parents[2]

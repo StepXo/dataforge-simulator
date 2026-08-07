@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from dataforge.state.simulation_state import SimulationState
+from dataforge.core.state.simulation_state import SimulationState
 
 
 def prepare_empty_collections(state: SimulationState, names: Sequence[str]) -> None:

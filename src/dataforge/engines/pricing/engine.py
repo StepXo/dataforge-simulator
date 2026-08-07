@@ -16,10 +16,10 @@ from dataforge.engines.pricing.models import (
 )
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
-from dataforge.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
+from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
 
 MONEY_QUANT = Decimal("0.01")
 PRICING_CONTEXT_COLLECTION = "pricing_context"

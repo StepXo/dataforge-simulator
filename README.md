@@ -17,7 +17,7 @@ empresariales concretos.
 
 ```bash
 uv sync --dev
-uv run uvicorn dataforge.main:app --reload
+uv run uvicorn dataforge.api.app:app --reload
 ```
 
 La documentaci?n OpenAPI queda disponible en `http://127.0.0.1:8000/docs`.
@@ -254,7 +254,7 @@ relaciones. Actualmente existe un ejemplo peque?o en
 ```python
 from pathlib import Path
 
-from dataforge.configuration.geography import load_geography
+from dataforge.config.geography import load_geography
 
 geography = load_geography(Path("configs/geography/colombia.yaml"))
 ```

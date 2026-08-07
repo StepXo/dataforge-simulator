@@ -1,7 +1,7 @@
 """Events published by the promotion engine."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.promotion.models import PromotionContext
-from dataforge.events.event import DomainEvent
 
 
 class PromotionContextGenerated(DomainEvent):

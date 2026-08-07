@@ -2,12 +2,12 @@
 
 from datetime import datetime
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.inventory.models import InventoryMovement
 from dataforge.engines.replenishment.models import (
     PendingReplenishment,
     ReplenishmentContext,
 )
-from dataforge.events.event import DomainEvent
 
 
 class ReplenishmentScheduled(DomainEvent):

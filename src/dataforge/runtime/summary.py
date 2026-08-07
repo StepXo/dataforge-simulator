@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from dataforge.core.state.simulation_state import SimulationState
 from dataforge.engines.metrics.models import MetricsContext
 from dataforge.engines.validation.models import ValidationContext
 from dataforge.runtime.result import RunMetricsSummary, SimulationResult
-from dataforge.state.simulation_state import SimulationState
 
 
 @dataclass(frozen=True, slots=True)

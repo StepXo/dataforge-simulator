@@ -1,7 +1,7 @@
 """Events published by the time engine."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.time.models import TemporalContext
-from dataforge.events.event import DomainEvent
 
 
 class TimeContextGenerated(DomainEvent):

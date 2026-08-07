@@ -2,7 +2,6 @@
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
-from dataforge.customers.models import Customer
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
@@ -24,9 +23,10 @@ from dataforge.engines.transaction.models import (
     TransactionLineStatus,
     TransactionStatus,
 )
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
+from dataforge.generators.customers.models import Customer
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
 
 TRANSACTION_CONTEXT_COLLECTION = "transaction_context"
 
