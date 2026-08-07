@@ -1,6 +1,6 @@
 """Tests for immutable inventory updates driven by completed transactions."""
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -24,6 +24,8 @@ from dataforge.engines.transaction.models import (
     RejectionReason,
     Transaction,
     TransactionContext,
+    TransactionLine,
+    TransactionLineStatus,
     TransactionStatus,
 )
 from dataforge.events.event_bus import EventBus
@@ -42,48 +44,66 @@ def transaction(
     product_id: str = "product-a",
 ) -> Transaction:
     amount = Decimal("10.00") * quantity
+    line_status = (
+        TransactionLineStatus.COMPLETED
+        if status is TransactionStatus.COMPLETED
+        else TransactionLineStatus.REJECTED
+    )
+    line = TransactionLine(
+        f"line-{identifier}",
+        f"intent-{identifier}",
+        f"intent-{identifier}",
+        product_id,
+        quantity,
+        Decimal("10.00"),
+        amount,
+        ZERO_MONEY,
+        amount,
+        (),
+        line_status,
+        None
+        if line_status is TransactionLineStatus.COMPLETED
+        else RejectionReason.INSUFFICIENT_STOCK,
+    )
     return Transaction(
-        id=identifier,
-        basket_id="basket-0-000001",
-        intent_id=f"intent-{identifier}",
-        quote_intent_id=f"intent-{identifier}",
-        customer_id="customer-a",
-        location_id=location_id,
-        product_id=product_id,
-        channel=PreferredChannel.MOBILE,
-        quantity=quantity,
-        currency="COP",
-        unit_price=Decimal("10.00"),
-        gross_amount=amount,
-        discount_amount=ZERO_MONEY,
-        net_amount=amount,
-        applied_promotion_ids=(),
-        status=status,
-        rejection_reason=(
-            None
-            if status is TransactionStatus.COMPLETED
-            else RejectionReason.INSUFFICIENT_STOCK
-        ),
-        tick_index=0,
-        occurred_at=NOW,
+        identifier,
+        "basket-0-000001",
+        "customer-a",
+        location_id,
+        PreferredChannel.MOBILE,
+        (line,),
+        "COP",
+        amount if line_status is TransactionLineStatus.COMPLETED else ZERO_MONEY,
+        ZERO_MONEY,
+        amount if line_status is TransactionLineStatus.COMPLETED else ZERO_MONEY,
+        amount if line_status is TransactionLineStatus.REJECTED else ZERO_MONEY,
+        quantity if line_status is TransactionLineStatus.COMPLETED else 0,
+        quantity if line_status is TransactionLineStatus.REJECTED else 0,
+        status,
+        0,
+        NOW,
     )
 
 
 def transaction_context(items: tuple[Transaction, ...]) -> TransactionContext:
-    completed = tuple(x for x in items if x.status is TransactionStatus.COMPLETED)
-    rejected = tuple(x for x in items if x.status is TransactionStatus.REJECTED)
+    lines = tuple(line for item in items for line in item.lines)
     return TransactionContext(
         0,
         NOW,
         items,
-        len(completed),
-        len(rejected),
-        sum(x.quantity for x in completed),
-        sum(x.quantity for x in rejected),
-        sum((x.gross_amount for x in completed), start=ZERO_MONEY),
-        ZERO_MONEY,
-        sum((x.net_amount for x in completed), start=ZERO_MONEY),
-        sum((x.net_amount for x in rejected), start=ZERO_MONEY),
+        len(items),
+        sum(x.status is TransactionStatus.COMPLETED for x in items),
+        sum(x.status is TransactionStatus.PARTIALLY_COMPLETED for x in items),
+        sum(x.status is TransactionStatus.REJECTED for x in items),
+        len(lines),
+        sum(x.status is TransactionLineStatus.COMPLETED for x in lines),
+        sum(x.status is TransactionLineStatus.REJECTED for x in lines),
+        sum(x.completed_units for x in items),
+        sum(x.rejected_units for x in items),
+        sum((x.gross_amount for x in items), start=ZERO_MONEY),
+        sum((x.discount_amount for x in items), start=ZERO_MONEY),
+        sum((x.net_amount for x in items), start=ZERO_MONEY),
+        sum((x.lost_sales_amount for x in items), start=ZERO_MONEY),
     )
 
 
@@ -289,19 +309,7 @@ def test_updated_stock_persists_into_the_next_tick() -> None:
     next_transactions = transaction_context((transaction("tick-one", 3),))
     context.state.collection("transaction_context").add(
         "tick-1",
-        TransactionContext(
-            1,
-            NOW,
-            next_transactions.transactions,
-            next_transactions.completed_count,
-            next_transactions.rejected_count,
-            next_transactions.completed_units,
-            next_transactions.rejected_units,
-            next_transactions.gross_amount,
-            next_transactions.discount_amount,
-            next_transactions.net_amount,
-            next_transactions.lost_sales_amount,
-        ),
+        replace(next_transactions, tick_index=1),
     )
     engine.execute(context, clock)
 

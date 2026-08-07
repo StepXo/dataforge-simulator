@@ -5,6 +5,8 @@ from dataforge.engines.transaction.models import (
     RejectionReason,
     Transaction,
     TransactionContext,
+    TransactionLine,
+    TransactionLineStatus,
     TransactionStatus,
 )
 
@@ -12,6 +14,8 @@ __all__ = [
     "RejectionReason",
     "Transaction",
     "TransactionContext",
+    "TransactionLine",
+    "TransactionLineStatus",
     "TransactionEngine",
     "TransactionStatus",
 ]

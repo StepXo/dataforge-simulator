@@ -29,7 +29,10 @@ class TimeOfDay(StrEnum):
     NIGHT = "night"
 
 
-def _time_of_day(hour: int) -> TimeOfDay:
+def time_of_day_for_hour(hour: int) -> TimeOfDay:
+    """Classify one wall-clock hour using the shared daypart boundaries."""
+    if not 0 <= hour <= 23:
+        raise ValueError("hour must be between 0 and 23")
     if hour < 6:
         return TimeOfDay.EARLY_MORNING
     if hour < 11:
@@ -72,7 +75,9 @@ class TemporalContext:
         object.__setattr__(self, "hour", self.current_time.hour)
         object.__setattr__(self, "day_of_week", day_of_week)
         object.__setattr__(self, "day_name", DAY_NAMES[day_of_week])
-        object.__setattr__(self, "time_of_day", _time_of_day(self.current_time.hour))
+        object.__setattr__(
+            self, "time_of_day", time_of_day_for_hour(self.current_time.hour)
+        )
         object.__setattr__(self, "is_weekend", day_of_week >= 5)
         object.__setattr__(self, "is_month_start", self.current_time.day == 1)
         object.__setattr__(

@@ -27,6 +27,7 @@ from dataforge.inventory.generator import InventoryBootstrapGenerator
 from dataforge.products.generator import ProductGenerator
 from dataforge.promotions.generator import PromotionBootstrapGenerator
 from dataforge.runtime.result import SimulationResult
+from dataforge.runtime.summary import aggregate_run_metrics
 from dataforge.scenario.loader import load_scenario
 from dataforge.scenario.models import ScenarioDefinition
 from dataforge.simulation.orchestrator import SimulationOrchestrator
@@ -94,9 +95,13 @@ class SimulationRunner:
             ]
         )
         simulation_summary = orchestrator.run(context, clock)
+        metrics_summary = aggregate_run_metrics(
+            state, simulation_summary.ticks_processed
+        )
         return SimulationResult(
             scenario=self._scenario,
             bootstrap_summary=bootstrap_summary,
             simulation_summary=simulation_summary,
+            metrics_summary=metrics_summary,
             state=state,
         )

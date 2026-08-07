@@ -15,8 +15,13 @@ class MetricsContext:
     intent_units: int
     unassigned_demand_units: int
     price_quotes: int
+    total_transactions: int
     completed_transactions: int
+    partially_completed_transactions: int
     rejected_transactions: int
+    transaction_lines: int
+    completed_lines: int
+    rejected_lines: int
     completed_units: int
     rejected_units: int
     gross_sales_amount: Decimal

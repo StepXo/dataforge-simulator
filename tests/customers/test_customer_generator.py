@@ -115,7 +115,7 @@ def test_customer_generator_invariants_and_distribution() -> None:
             assert location.city_id == city.id
         assert 0 <= item.promotion_sensitivity <= 1
         assert 0.5 <= item.activity_factor <= 1.5
-        assert item.registered_at <= date(2026, 12, 31)
+        assert item.registered_at <= ctx.date_range.start_date
         if item.segment is CustomerSegment.INACTIVE:
             assert item.purchase_frequency == 0 and item.active is False
         else:

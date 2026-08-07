@@ -85,7 +85,7 @@
 - Rejected transactions never change Inventory, and ReorderSignal never implies replenishment.
 - InventoryItem remains immutable and must be updated through explicit replacement.
 - Check duplicate InventoryEngine execution before modifying stock.
-- Never replenish immediately when lead time is at least one tick.
+- Never replenish immediately when lead time is at least one day.
 - Keep at most one pending replenishment per InventoryItem and never exceed max_stock.
 - Complete due replenishments before scheduling new ones; ReplenishmentEngine never creates sales.
 - All replenishment randomness must use RandomEngine.
@@ -115,3 +115,20 @@
 - POST /simulation/verify is synchronous and must not persist or export simulation state.
 - Existing API endpoints must remain backward compatible.
 - Never report a simulation as successful if SimulationRunner or StateValidationEngine failed.
+- Business durations must not change meaning when TickUnit changes; convert domain durations to ticks at runtime.
+- Replenishment lead times are expressed in days, never raw ticks.
+- Demand base ranges represent an hourly baseline and must be scaled to the duration represented by each tick.
+- A daily demand tick must account for the intraday time-of-day profile rather than treating the whole day as the clock hour at tick start.
+- Changing simulation resolution must change temporal granularity, not the underlying business rate semantics.
+- Run-level metrics must aggregate MetricsContext snapshots; never present the final tick as the total simulation result.
+- Master-data bootstrap must never depend on simulation end_datetime; extending the horizon must not rewrite initial state.
+- DataForge simulations must preserve horizon invariance: with the same seed, start time, and configuration, extending end_datetime must not change already simulated ticks.
+- Bootstrap customers represent the customer population existing at simulation start; future customer growth or churn belongs to a dedicated runtime feature.
+- Bootstrap locations represent locations already operating at simulation start; future openings require a dedicated runtime feature.
+- PromotionBootstrapGenerator creates annual promotion patterns, not horizon-bound promotion occurrences.
+- Promotion patterns exist independently of the simulation date range and may recur once per calendar year.
+- Annual promotion occurrence variation must be deterministic for a given seed, promotion, and year and must not depend on simulation horizon length.
+- Transaction represents one finalized basket/checkout; product-level outcomes belong to TransactionLine.
+- Never use transaction as a synonym for product line in public metrics or documentation.
+- InventoryEngine applies stock changes from completed TransactionLines, not from basket-level Transaction status alone.
+- Out-of-stock metrics count events/signals unless explicitly labeled as unique inventory items.

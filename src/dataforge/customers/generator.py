@@ -135,9 +135,5 @@ class CustomerGenerator:
 
     def _registered_at(self, context: SimulationContext) -> date:
         start = context.date_range.start_date
-        if context.random_engine.uniform(0, 1) < 0.8:
-            return start - timedelta(days=context.random_engine.randint(1, 3 * 365))
-        end = context.date_range.end_date
-        return start + timedelta(
-            days=context.random_engine.randint(0, (end - start).days)
-        )
+        context.random_engine.uniform(0, 1)
+        return start - timedelta(days=context.random_engine.randint(0, 3 * 365))

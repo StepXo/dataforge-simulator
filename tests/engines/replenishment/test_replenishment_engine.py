@@ -19,6 +19,7 @@ from dataforge.engines.inventory.models import (
 from dataforge.engines.replenishment.engine import (
     ReplenishmentEngine,
     ReplenishmentEngineConfig,
+    _days_to_ticks,
 )
 from dataforge.engines.replenishment.models import (
     PendingReplenishment,
@@ -84,7 +85,7 @@ def runtime(
         RandomEngine(seed),
         EventBus(store),
     )
-    end = NOW + timedelta(hours=max(tick, 1))
+    end = NOW + timedelta(hours=max(tick, 72))
     clock = SimulationClock(TimeRange(NOW, end), TickUnit.HOUR)
     for _ in range(tick):
         clock.advance()
@@ -126,9 +127,9 @@ def result(
 
 def test_config_and_models_validate_and_are_immutable() -> None:
     with pytest.raises(ValidationError):
-        ReplenishmentEngineConfig(min_lead_time_ticks=0)
+        ReplenishmentEngineConfig(min_lead_time_days=0)
     with pytest.raises(ValidationError):
-        ReplenishmentEngineConfig(min_lead_time_ticks=3, max_lead_time_ticks=2)
+        ReplenishmentEngineConfig(min_lead_time_days=3, max_lead_time_days=2)
     value = pending(due=1)
     with pytest.raises(FrozenInstanceError):
         value.__setattr__("status", ReplenishmentStatus.COMPLETED)
@@ -136,7 +137,7 @@ def test_config_and_models_validate_and_are_immutable() -> None:
 
 def test_reorder_schedules_reproducible_future_pending() -> None:
     item = inventory(8)
-    config = ReplenishmentEngineConfig(min_lead_time_ticks=1, max_lead_time_ticks=3)
+    config = ReplenishmentEngineConfig(min_lead_time_days=1, max_lead_time_days=3)
     first, first_context, store = result(
         item=item, signals=(signal(item),), config=config
     )
@@ -145,7 +146,7 @@ def test_reorder_schedules_reproducible_future_pending() -> None:
     assert first == second
     assert scheduled.id == "replenishment-0-000001"
     assert scheduled.requested_quantity == 92
-    assert 1 <= scheduled.due_tick_index <= 3
+    assert 24 <= scheduled.due_tick_index <= 72
     assert scheduled.status is ReplenishmentStatus.PENDING
     assert (
         first_context.state.collection("inventory").require(item.id).current_stock == 8
@@ -204,19 +205,28 @@ def test_pending_persists_until_due_tick() -> None:
     item = inventory(8)
     context, clock, _ = runtime(signals=(signal(item),))
     engine = ReplenishmentEngine(
-        ReplenishmentEngineConfig(min_lead_time_ticks=2, max_lead_time_ticks=2)
+        ReplenishmentEngineConfig(min_lead_time_days=2, max_lead_time_days=2)
     )
     engine.execute(context, clock)
     assert context.state.collection("inventory").require(item.id).current_stock == 8
-    for tick in (1, 2):
+    clock.advance()
+    context.state.collection("temporal_context").add(
+        "tick-1", TemporalContext(1, clock.current_time, TickUnit.HOUR)
+    )
+    context.state.collection("inventory_context").add(
+        "tick-1", InventoryContext(1, clock.current_time, (), (), (), 0, 0)
+    )
+    engine.execute(context, clock)
+    assert context.state.collection("inventory").require(item.id).current_stock == 8
+    for _ in range(47):
         clock.advance()
-        context.state.collection("temporal_context").add(
-            f"tick-{tick}", TemporalContext(tick, clock.current_time, TickUnit.HOUR)
-        )
-        context.state.collection("inventory_context").add(
-            f"tick-{tick}", InventoryContext(tick, clock.current_time, (), (), (), 0, 0)
-        )
-        engine.execute(context, clock)
+    context.state.collection("temporal_context").add(
+        "tick-48", TemporalContext(48, clock.current_time, TickUnit.HOUR)
+    )
+    context.state.collection("inventory_context").add(
+        "tick-48", InventoryContext(48, clock.current_time, (), (), (), 0, 0)
+    )
+    engine.execute(context, clock)
     assert context.state.collection("inventory").require(item.id).current_stock == 100
     assert (
         context.state.collection("replenishment_context").require("tick-1").completed
@@ -225,7 +235,7 @@ def test_pending_persists_until_due_tick() -> None:
     assert (
         len(
             context.state.collection("replenishment_context")
-            .require("tick-2")
+            .require("tick-48")
             .completed
         )
         == 1
@@ -254,3 +264,12 @@ def test_invalid_due_inventory_fails_before_mutation() -> None:
         ReplenishmentEngine().execute(context, clock)
     assert context.state.collection("inventory").require(item.id).current_stock == 8
     assert store.count() == 0
+
+
+def test_lead_time_days_convert_to_hourly_and_daily_ticks() -> None:
+    hourly = SimulationClock(TimeRange(NOW, NOW + timedelta(days=4)), TickUnit.HOUR)
+    daily = SimulationClock(TimeRange(NOW, NOW + timedelta(days=4)), TickUnit.DAY)
+    assert _days_to_ticks(1, hourly) == 24
+    assert _days_to_ticks(3, hourly) == 72
+    assert _days_to_ticks(1, daily) == 1
+    assert _days_to_ticks(3, daily) == 3

@@ -11,7 +11,7 @@ from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import DateRange, TimeRange
-from dataforge.engines.promotion.engine import PromotionEngine
+from dataforge.engines.promotion.engine import PromotionEngine, annual_occurrence
 from dataforge.engines.promotion.events import PromotionContextGenerated
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.engine import TimeEngine
@@ -191,3 +191,22 @@ def test_promotion_engine_satisfies_protocol_and_does_not_advance_clock() -> Non
     engine.execute(context, clock)
     assert clock.tick_index == 0
     assert clock.current_time == datetime(2026, 8, 10)
+
+
+def test_annual_occurrence_is_stable_and_recurs_across_years() -> None:
+    pattern = promotion("annual", start=date(2000, 4, 5), end=date(2000, 4, 12))
+    occurrence_2024 = annual_occurrence(pattern, 2024, 42)
+    assert occurrence_2024 == annual_occurrence(pattern, 2024, 42)
+    occurrence_2025 = annual_occurrence(pattern, 2025, 42)
+    assert occurrence_2024[0].year == 2024
+    assert occurrence_2025[0].year == 2025
+    assert occurrence_2024[0].month == occurrence_2025[0].month == 4
+    assert occurrence_2024[0].day != occurrence_2025[0].day
+    assert (occurrence_2024[1] - occurrence_2024[0]).days == 7
+    assert (occurrence_2025[1] - occurrence_2025[0]).days == 7
+
+
+def test_annual_pattern_exists_but_is_inactive_outside_occurrence() -> None:
+    pattern = promotion("april", start=date(2000, 4, 5), end=date(2000, 4, 12))
+    result = execute_tick(datetime(2024, 1, 2), pattern)
+    assert result.active_promotions == ()

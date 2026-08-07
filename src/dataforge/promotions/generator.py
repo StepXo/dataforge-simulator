@@ -99,15 +99,12 @@ class PromotionBootstrapGenerator:
         return values
 
     def _dates(self, context: SimulationContext) -> tuple[date, date]:
-        start = context.date_range.start_date
-        end = context.date_range.end_date
-        start_date = start + timedelta(
-            days=context.random_engine.randint(0, (end - start).days)
+        """Create a horizon-independent annual pattern anchored in leap year 2000."""
+        anchor = date(2000, 1, 1)
+        start_date = anchor + timedelta(days=context.random_engine.randint(0, 365))
+        duration = context.random_engine.randint(
+            self._config.min_duration_days, self._config.max_duration_days
         )
-        remaining_days = (end - start_date).days + 1
-        maximum = min(self._config.max_duration_days, remaining_days)
-        minimum = min(self._config.min_duration_days, maximum)
-        duration = context.random_engine.randint(minimum, maximum)
         return start_date, start_date + timedelta(days=duration - 1)
 
     def _target(

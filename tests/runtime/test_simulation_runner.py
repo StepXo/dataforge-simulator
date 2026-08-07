@@ -100,8 +100,8 @@ def scenario_file(tmp_path: Path, seed: int = 42) -> Path:
                 "promotions": {"count": 1},
                 "demand": {"base_demand_min": 0.1, "base_demand_max": 0.2},
                 "replenishment": {
-                    "min_lead_time_ticks": 1,
-                    "max_lead_time_ticks": 1,
+                    "min_lead_time_days": 1,
+                    "max_lead_time_days": 1,
                 },
             }
         ),
@@ -129,6 +129,7 @@ def test_runner_executes_bootstrap_and_all_ten_engines(tmp_path: Path) -> None:
     assert result.bootstrap_summary.collections_created == 10
     assert result.simulation_summary.ticks_processed == 2
     assert result.simulation_summary.engine_executions == 20
+    assert result.metrics_summary.ticks_aggregated == 2
     assert all(result.state.has_collection(name) for name in MASTER_COLLECTIONS)
     for name in TICK_COLLECTIONS:
         collection = result.state.collection(name)

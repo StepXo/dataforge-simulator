@@ -166,11 +166,20 @@ def finish(exit_code: int) -> None:
         raise typer.Exit(exit_code)
 
 
+def _resolve_scenario_path(argument: Path) -> Path:
+    """Resolve an explicit file first, then the conventional scenario directory."""
+    if argument.is_file():
+        return argument
+    candidate = Path("configs/scenarios") / f"{argument}.yaml"
+    return candidate if candidate.is_file() else argument
+
+
 @app.command()
 def simulate(scenario: Annotated[Path, typer.Argument(exists=False)]) -> None:
     """Execute a complete scenario through the standard simulation runtime."""
+    scenario_path = _resolve_scenario_path(scenario)
     try:
-        result = SimulationRunner.from_file(scenario).run()
+        result = SimulationRunner.from_file(scenario_path).run()
         summary = build_simulation_summary(result)
     except Exception as error:
         typer.echo(f"Simulation failed: {error}", err=True)
@@ -182,18 +191,32 @@ def simulate(scenario: Annotated[Path, typer.Argument(exists=False)]) -> None:
 
     simulation = result.scenario.simulation
     typer.echo("Simulation completed")
-    typer.echo(f"Scenario: {scenario.name}")
+    typer.echo(f"Scenario: {scenario_path.name}")
     typer.echo(f"Seed: {summary.seed}")
     typer.echo(f"Start: {simulation.start_datetime.isoformat()}")
     typer.echo(f"End: {simulation.end_datetime.isoformat()}")
     typer.echo(f"Tick unit: {summary.tick_unit}")
     typer.echo(f"Ticks processed: {summary.ticks_processed}")
     typer.echo(f"Engine executions: {summary.engine_executions}")
-    if summary.completed_transactions is not None:
-        typer.echo(f"Completed transactions: {summary.completed_transactions}")
-        typer.echo(f"Rejected transactions: {summary.rejected_transactions}")
-        typer.echo(f"Net sales: {summary.net_sales_amount}")
-        typer.echo(f"Lost sales: {summary.lost_sales_amount}")
+    typer.echo("")
+    typer.echo("Run totals:")
+    typer.echo(f"Demand units: {summary.demand_units}")
+    typer.echo(f"Unassigned demand units: {summary.unassigned_demand_units}")
+    typer.echo(f"Total transactions: {summary.total_transactions}")
+    typer.echo(f"Completed transactions: {summary.completed_transactions}")
+    typer.echo(
+        f"Partially completed transactions: {summary.partially_completed_transactions}"
+    )
+    typer.echo(f"Rejected transactions: {summary.rejected_transactions}")
+    typer.echo(f"Completed lines: {summary.completed_lines}")
+    typer.echo(f"Rejected lines: {summary.rejected_lines}")
+    typer.echo(f"Completed units: {summary.completed_units}")
+    typer.echo(f"Rejected units: {summary.rejected_units}")
+    typer.echo(f"Net sales: {summary.net_sales_amount}")
+    typer.echo(f"Lost sales: {summary.lost_sales_amount}")
+    typer.echo(f"Out-of-stock events/signals: {summary.out_of_stock_signals}")
+    typer.echo(f"Replenishments completed: {summary.replenishments_completed}")
+    typer.echo(f"Units replenished: {summary.units_replenished}")
 
 
 @app.command()

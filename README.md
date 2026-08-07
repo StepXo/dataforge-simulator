@@ -366,6 +366,15 @@ DemandEngine
    ↓
 DemandContext
 ```
+## Demand temporal semantics
+
+`base_demand_min` y `base_demand_max` representan demanda base esperada por
+hora para cada Location x Product. Un tick horario conserva esa escala; un tick
+diario suma el perfil intradiario de sus 24 horas en lugar de aplicar el factor
+de medianoche a todo el dia. `max_requested_units_per_item` permanece como limite
+de seguridad por DemandRecord y tick. Cambiar `TickUnit` modifica la granularidad,
+no la tasa comercial subyacente.
+
 ## Customer Behavior Engine
 
 `CustomerBehaviorEngine` se ejecuta después de `DemandEngine`. Consume el
@@ -420,30 +429,26 @@ PriceQuote
 
 ## Transaction Engine
 
-`TransactionEngine` convierte cada `PurchaseIntent` y su `PriceQuote` correspondiente
-en una `Transaction` completada o rechazada, preservando su `basket_id`. La operacion es *all-or-nothing*: si
-el stock no cubre toda la cantidad solicitada, no existe venta parcial.
-
-El engine usa un ledger local por combinacion Location x Product para evitar
-*overselling* entre intents del mismo tick, pero no modifica `InventoryItem`. Las
-transacciones rechazadas conservan los importes cotizados y
-`lost_sales_amount` acumula su valor neto potencial. Un futuro `InventoryEngine`
-aplicara al stock las transacciones completadas.
+`Transaction` representa un basket/check-out finalizado, no un producto. Agrupa
+intents con el mismo `basket_id`, customer, Location, canal y tick. Cada producto
+se conserva como `TransactionLine` con quantity, pricing y resultado line-level
+all-or-nothing.
 
 ```text
-PricingEngine
-    |
-PriceQuote
-    |
-TransactionEngine
-    +-- completed
-    +-- rejected
+Basket -> Transaction
+Product inside Basket -> TransactionLine
 ```
+
+Un basket puede quedar `completed`, `partially_completed` o `rejected`. El ledger
+local Location x Product evita overselling; las l??neas rejected conservan valor
+potencial como `lost_sales_amount`. `TransactionEngine` decide resultados pero no
+muta inventario.
 
 ## Inventory Engine
 
 `InventoryEngine` consume el `TransactionContext` y aplica exclusivamente las
-transacciones `completed`. Cada venta reemplaza el `InventoryItem` inmutable por
+`TransactionLine` completed, incluso dentro de un basket parcial. Cada venta
+reemplaza el `InventoryItem` inmutable por
 una nueva instancia con el stock descontado y produce un `InventoryMovement`.
 El stock resultante permanece en `SimulationState` y es visible en ticks posteriores.
 
@@ -467,7 +472,9 @@ rollback general si ocurre un fallo inesperado al guardar despues de los reempla
 ## Replenishment Engine
 
 `ReplenishmentEngine` consume los `ReorderSignal` del tick y programa recepciones
-futuras con un lead time reproducible medido en ticks. Conserva como maximo una
+futuras con un lead time reproducible expresado en dias. El engine convierte esa
+duracion a ticks usando la resolucion del reloj (1 dia son 24 ticks horarios o
+1 tick diario). Conserva como maximo una
 reposicion pending por InventoryItem y completa vencimientos antes de procesar
 nuevas senales. Al recibir stock reemplaza el `InventoryItem` inmutable hasta
 `max_stock` sin superarlo y publica un movimiento de tipo `replenishment`.
@@ -545,8 +552,8 @@ ScenarioDefinition
 ```
 
 El ejemplo `configs/scenarios/taqueria-colombia.yaml` reutiliza las configuraciones
-actuales de bootstrap y engines. Un futuro `SimulationRunner` consumira este
-contrato; no forma parte de la implementacion actual.
+actuales de bootstrap y engines. `SimulationRunner` consume este contrato para
+construir un runtime nuevo en cada ejecucion.
 
 Los nombres de archivo no tienen semantica para DataForge. `taqueria-colombia.yaml`,
 `colombia.yaml` y `taqueria.yaml` son ejemplos, no convenciones del runtime. Una
@@ -555,11 +562,12 @@ validado, nunca el filename o sus fragmentos de ruta, determina su significado.
 ## Simulation CLI
 
 El comando `simulate` ejecuta un scenario completo mediante `SimulationRunner` y
-muestra solamente el resumen final, incluidos ticks, ejecuciones y metricas
-comerciales del ultimo tick cuando estan disponibles.
+muestra ticks, ejecuciones y `Run totals` acumulados desde todos los snapshots
+`MetricsContext`; nunca presenta el ultimo tick como total de la corrida.
 
 ```bash
 dataforge simulate configs/scenarios/taqueria-colombia.yaml
+dataforge simulate taqueria-colombia
 ```
 
 ## Runtime Verification API
@@ -576,6 +584,17 @@ accesible por el proceso de la aplicacion.
 
 La respuesta es un resumen tipado; ninguna de estas superficies persiste estado,
 exporta resultados, acepta uploads o ejecuta trabajos en background.
+## Horizon invariance
+
+DataForge preserva *horizon invariance*: con la misma seed, inicio y configuraci??n,
+un run corto es el prefijo del run largo. Extender `end_datetime` no modifica
+locations, products, customers, inventario inicial, patrones promocionales ni los
+ticks ya simulados. Las Locations del bootstrap est??n abiertas al inicio; futuras
+aperturas requieren una feature runtime dedicada.
+
+Las m??tricas `Out-of-stock events/signals` cuentan eventos donde un item modificado
+termina en cero; no representan productos ??nicos actualmente agotados.
+
 ## Calidad y pruebas
 
 ```bash

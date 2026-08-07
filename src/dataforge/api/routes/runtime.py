@@ -31,10 +31,22 @@ class SimulationVerifyResponse(BaseModel):
     ticks_processed: int
     engine_executions: int
     validation_passed: bool
-    completed_transactions: int | None = None
-    rejected_transactions: int | None = None
-    net_sales_amount: str | None = None
-    lost_sales_amount: str | None = None
+    demand_units: int
+    unassigned_demand_units: int
+    total_transactions: int
+    completed_transactions: int
+    partially_completed_transactions: int
+    rejected_transactions: int
+    transaction_lines: int
+    completed_lines: int
+    rejected_lines: int
+    completed_units: int
+    rejected_units: int
+    net_sales_amount: str
+    lost_sales_amount: str
+    out_of_stock_signals: int
+    replenishments_completed: int
+    units_replenished: int
 
 
 @router.post("/verify", response_model=SimulationVerifyResponse)
@@ -63,16 +75,20 @@ def verify_simulation(request: SimulationVerifyRequest) -> SimulationVerifyRespo
         ticks_processed=summary.ticks_processed,
         engine_executions=summary.engine_executions,
         validation_passed=True,
+        demand_units=summary.demand_units,
+        unassigned_demand_units=summary.unassigned_demand_units,
+        total_transactions=summary.total_transactions,
         completed_transactions=summary.completed_transactions,
+        partially_completed_transactions=summary.partially_completed_transactions,
         rejected_transactions=summary.rejected_transactions,
-        net_sales_amount=(
-            str(summary.net_sales_amount)
-            if summary.net_sales_amount is not None
-            else None
-        ),
-        lost_sales_amount=(
-            str(summary.lost_sales_amount)
-            if summary.lost_sales_amount is not None
-            else None
-        ),
+        transaction_lines=summary.transaction_lines,
+        completed_lines=summary.completed_lines,
+        rejected_lines=summary.rejected_lines,
+        completed_units=summary.completed_units,
+        rejected_units=summary.rejected_units,
+        net_sales_amount=str(summary.net_sales_amount),
+        lost_sales_amount=str(summary.lost_sales_amount),
+        out_of_stock_signals=summary.out_of_stock_signals,
+        replenishments_completed=summary.replenishments_completed,
+        units_replenished=summary.units_replenished,
     )

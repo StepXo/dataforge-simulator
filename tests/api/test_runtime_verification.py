@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from dataforge.main import app
+from dataforge.runtime import SimulationRunner
 from tests.runtime.test_simulation_runner import scenario_file
 
 client = TestClient(app)
@@ -12,6 +13,7 @@ client = TestClient(app)
 
 def test_simulation_verify_runs_complete_pipeline(tmp_path: Path) -> None:
     path = scenario_file(tmp_path)
+    expected = SimulationRunner.from_file(path).run().metrics_summary
 
     response = client.post("/simulation/verify", json={"scenario_path": str(path)})
 
@@ -23,7 +25,16 @@ def test_simulation_verify_runs_complete_pipeline(tmp_path: Path) -> None:
     assert body["ticks_processed"] == 2
     assert body["engine_executions"] == body["ticks_processed"] * 10
     assert body["validation_passed"] is True
+    assert body["demand_units"] == expected.demand_units
+    assert body["total_transactions"] == expected.total_transactions
+    assert body["completed_transactions"] == expected.completed_transactions
+    assert body["partially_completed_transactions"] == (
+        expected.partially_completed_transactions
+    )
+    assert body["transaction_lines"] == expected.transaction_lines
+    assert body["completed_units"] == expected.completed_units
     assert isinstance(body["net_sales_amount"], str)
+    assert body["units_replenished"] == expected.units_replenished
     assert isinstance(body["lost_sales_amount"], str)
 
 

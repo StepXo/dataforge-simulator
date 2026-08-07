@@ -8,10 +8,15 @@ from pydantic import BaseModel, Field, model_validator
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.tick import TickUnit
 from dataforge.engines.demand.events import DemandContextGenerated
 from dataforge.engines.demand.models import DemandContext, DemandRecord
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
-from dataforge.engines.time.models import TemporalContext, TimeOfDay
+from dataforge.engines.time.models import (
+    TemporalContext,
+    TimeOfDay,
+    time_of_day_for_hour,
+)
 from dataforge.geography.models import Location
 from dataforge.inventory.models import InventoryItem
 from dataforge.products.models import Product
@@ -21,6 +26,8 @@ DEMAND_CONTEXT_COLLECTION = "demand_context"
 
 
 class DemandEngineConfig(BaseModel):
+    """Configure hourly baseline demand and per-tick safety limits."""
+
     base_demand_min: float = Field(default=0.10, ge=0)
     base_demand_max: float = 3.00
     weekend_factor: float = Field(default=1.20, ge=0)
@@ -180,6 +187,20 @@ def _temporal_factor(
     temporal: TemporalContext,
     config: DemandEngineConfig,
 ) -> float:
+    result = _intraday_factor(temporal.tick_unit, temporal.hour, config)
+    if temporal.is_weekend:
+        result *= config.weekend_factor
+    if temporal.is_mid_month:
+        result *= config.mid_month_factor
+    if temporal.is_month_end:
+        result *= config.month_end_factor
+    return result
+
+
+def _time_of_day_factor(
+    time_of_day: TimeOfDay,
+    config: DemandEngineConfig,
+) -> float:
     factors = {
         TimeOfDay.EARLY_MORNING: config.early_morning_factor,
         TimeOfDay.MORNING: config.morning_factor,
@@ -188,14 +209,23 @@ def _temporal_factor(
         TimeOfDay.EVENING: config.evening_factor,
         TimeOfDay.NIGHT: config.night_factor,
     }
-    result = factors[temporal.time_of_day]
-    if temporal.is_weekend:
-        result *= config.weekend_factor
-    if temporal.is_mid_month:
-        result *= config.mid_month_factor
-    if temporal.is_month_end:
-        result *= config.month_end_factor
-    return result
+    return factors[time_of_day]
+
+
+def _intraday_factor(
+    tick_unit: TickUnit,
+    hour: int,
+    config: DemandEngineConfig,
+) -> float:
+    """Scale the hourly baseline to the duration represented by one tick."""
+    if tick_unit is TickUnit.HOUR:
+        return _time_of_day_factor(time_of_day_for_hour(hour), config)
+    if tick_unit is TickUnit.DAY:
+        return sum(
+            _time_of_day_factor(time_of_day_for_hour(day_hour), config)
+            for day_hour in range(24)
+        )
+    raise ValueError(f"Unsupported tick unit for demand: {tick_unit}")
 
 
 def _promotion_factor(
