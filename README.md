@@ -637,3 +637,31 @@ uv run pytest
 The fast suite covers day and month horizons with hourly and daily ticks. The slow
 suite owns the complete temporal matrix, including six-month hourly simulations.
 The project does not install `pytest-xdist`, so these tests run with one worker.
+## Operational Data Model
+
+DataForge separates simulation behavior from logical datasets and physical output:
+
+```text
+Simulation Domain
+        |
+Operational Data Model
+        |
+Future physical exporters
+```
+
+The Operational Data Model (ODM) defines format-independent dataset names,
+columns, logical types, keys, and relationships. It does not contain rows and does
+not write files or database objects. CSV, Parquet, SQL, and analytics/star-schema
+representations remain future translations of this logical model.
+
+Master snapshots include geography, locations, categories, products, customers,
+and annual promotion patterns. `inventory` is the final Location x Product
+snapshot. Historical datasets are basket-level `transactions`, product-level
+`transaction_lines`, `inventory_movements`, `replenishments`, and per-tick
+`metrics`. Repeated promotion targets and applied promotions use the bridge
+datasets `promotion_targets` and `transaction_line_promotions`; no array or JSON
+storage representation is imposed.
+
+`RunMetricsSummary` is intentionally not an ODM dataset because the current runtime
+has no logical run identifier. It remains the in-memory summary for one completed
+execution.

@@ -134,3 +134,9 @@
 - Out-of-stock metrics count events/signals unless explicitly labeled as unique inventory items.
 - Use the dedicated smoke-test scenario for runtime smoke validation; never use long-running business scenarios as the default smoke test.
 - Multi-month hourly simulations belong to slow temporal regression tests, not the default fast test suite.
+- The Operational Data Model describes logical datasets and must remain independent of CSV, Parquet, SQL, databases, and analytics schemas.
+- Physical exporters translate logical ODM types into destination-specific representations; the ODM never contains destination-specific types.
+- ODM schemas must derive from the current simulation domain rather than legacy database schemas.
+- Transactions are basket-level datasets and TransactionLines are product-level datasets.
+- Operational datasets must distinguish current snapshots from historical facts.
+- Star-schema dimensions and facts must not leak into the operational model.
