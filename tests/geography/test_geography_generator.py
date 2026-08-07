@@ -84,7 +84,7 @@ def test_location_generation_and_conversion() -> None:
         assert city.region_id == area.region_id == item.region_id
         assert city.country_id == area.country_id == item.country_id
         assert 50 <= item.capacity <= 250 and 0.5 <= item.activity_factor <= 1.5
-        assert date(2021, 1, 1) <= item.opened_at <= date(2026, 12, 31)
+        assert date(2021, 1, 1) <= item.opened_at <= ctx.date_range.start_date
         counts[item.region_id] = counts.get(item.region_id, 0) + 1
         assert item.name not in names.setdefault(item.city_id, set())
         names[item.city_id].add(item.name)

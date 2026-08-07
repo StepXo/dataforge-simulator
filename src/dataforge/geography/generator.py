@@ -249,8 +249,8 @@ class GeographyGenerator:
             earliest = _shift_year(context.date_range.start_date, -5)
             latest = _shift_year(context.date_range.start_date, -1)
         else:
-            earliest = context.date_range.start_date
-            latest = context.date_range.end_date
+            earliest = _shift_year(context.date_range.start_date, -1)
+            latest = context.date_range.start_date
         offset = context.random_engine.randint(0, (latest - earliest).days)
         return earliest + timedelta(days=offset)
 

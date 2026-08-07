@@ -37,6 +37,8 @@ from dataforge.engines.transaction.models import (
     RejectionReason,
     Transaction,
     TransactionContext,
+    TransactionLine,
+    TransactionLineStatus,
     TransactionStatus,
 )
 from dataforge.events.event_bus import EventBus
@@ -47,24 +49,41 @@ ZERO = Decimal("0.00")
 
 
 def transaction(identifier: str, quantity: int, completed: bool) -> Transaction:
+    gross = Decimal("100.00") if completed else Decimal("200.00")
+    discount = Decimal("20.00") if completed else ZERO
+    net = Decimal("80.00") if completed else Decimal("200.00")
+    line_status = (
+        TransactionLineStatus.COMPLETED if completed else TransactionLineStatus.REJECTED
+    )
+    line = TransactionLine(
+        f"line-{identifier}",
+        f"intent-{identifier}",
+        f"intent-{identifier}",
+        "product-a",
+        quantity,
+        Decimal("1.00"),
+        gross,
+        discount,
+        net,
+        (),
+        line_status,
+        None if completed else RejectionReason.INSUFFICIENT_STOCK,
+    )
     return Transaction(
         identifier,
-        "basket-0-000001",
-        f"intent-{identifier}",
-        f"intent-{identifier}",
+        f"basket-{identifier}",
         "customer-a",
         "location-a",
-        "product-a",
         PreferredChannel.MOBILE,
-        quantity,
+        (line,),
         "COP",
-        Decimal("1.00"),
-        Decimal("100.00") if completed else Decimal("200.00"),
-        Decimal("20.00") if completed else ZERO,
-        Decimal("80.00") if completed else Decimal("200.00"),
-        (),
+        gross if completed else ZERO,
+        discount if completed else ZERO,
+        net if completed else ZERO,
+        net if not completed else ZERO,
+        quantity if completed else 0,
+        quantity if not completed else 0,
         TransactionStatus.COMPLETED if completed else TransactionStatus.REJECTED,
-        None if completed else RejectionReason.INSUFFICIENT_STOCK,
         0,
         NOW,
     )
@@ -147,6 +166,11 @@ def contexts(*, unassigned: int = 20, inventory_units: int = 60) -> dict[str, ob
             0,
             NOW,
             (completed, rejected),
+            2,
+            1,
+            0,
+            1,
+            2,
             1,
             1,
             60,
@@ -199,7 +223,17 @@ def test_happy_path_copies_official_metrics_and_event_payload() -> None:
         value.intent_units,
         value.unassigned_demand_units,
     ) == (1, 80, 20)
-    assert (value.completed_transactions, value.rejected_transactions) == (1, 1)
+    assert (
+        value.total_transactions,
+        value.completed_transactions,
+        value.partially_completed_transactions,
+        value.rejected_transactions,
+    ) == (2, 1, 0, 1)
+    assert (value.transaction_lines, value.completed_lines, value.rejected_lines) == (
+        2,
+        1,
+        1,
+    )
     assert (value.completed_units, value.rejected_units) == (60, 20)
     assert (
         value.gross_sales_amount,
@@ -248,7 +282,22 @@ def test_empty_tick_and_duplicate_execution() -> None:
         "customer_behavior_context": CustomerBehaviorContext(0, NOW, (), 0, 0, 0),
         "pricing_context": PricingContext(0, NOW, None, (), ZERO, ZERO, ZERO),
         "transaction_context": TransactionContext(
-            0, NOW, (), 0, 0, 0, 0, ZERO, ZERO, ZERO, ZERO
+            0,
+            NOW,
+            (),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            ZERO,
+            ZERO,
+            ZERO,
+            ZERO,
         ),
         "inventory_context": InventoryContext(0, NOW, (), (), (), 0, 0),
         "replenishment_context": ReplenishmentContext(0, NOW, (), (), (), 0, 0, 0),

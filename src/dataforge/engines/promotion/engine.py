@@ -1,4 +1,7 @@
-"""Engine that interprets the promotion calendar for each tick."""
+"""Engine that interprets recurring annual promotion patterns for each tick."""
+
+from datetime import date, timedelta
+from hashlib import sha256
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -35,7 +38,7 @@ class PromotionEngine:
             )
             for promotion in promotions
             if promotion.active
-            and promotion.start_date <= current_date <= promotion.end_date
+            and _promotion_active_on(promotion, current_date, context.seed)
         )
         promotion_context = PromotionContext(
             tick_index=clock.tick_index,
@@ -72,3 +75,25 @@ class PromotionEngine:
         if not isinstance(value, TemporalContext):
             raise ValueError(f"Temporal context is missing for tick: {tick_index}")
         return value
+
+
+def annual_occurrence(promotion: Promotion, year: int, seed: int) -> tuple[date, date]:
+    """Resolve one stable yearly occurrence independent of simulation horizon."""
+    template_start = promotion.start_date
+    duration_days = (promotion.end_date - template_start).days + 1
+    base = date(year, template_start.month, template_start.day)
+    variation = 0
+    if template_start.year == 2000:
+        digest = sha256(f"{seed}:{promotion.id}:{year}".encode()).digest()
+        variation = digest[0] % 7 - 3
+    start = base + timedelta(days=variation)
+    return start, start + timedelta(days=duration_days - 1)
+
+
+def _promotion_active_on(promotion: Promotion, current_date: date, seed: int) -> bool:
+    # The previous year's occurrence may cross into January.
+    return any(
+        start <= current_date <= end
+        for year in (current_date.year - 1, current_date.year)
+        for start, end in (annual_occurrence(promotion, year, seed),)
+    )

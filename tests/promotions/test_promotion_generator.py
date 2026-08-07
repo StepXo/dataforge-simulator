@@ -138,7 +138,8 @@ def test_promotion_generator_invariants_targets_events_and_inactive_product() ->
     ]
     for item in promotions:
         assert (
-            date(2026, 1, 1) <= item.start_date <= item.end_date <= date(2026, 12, 31)
+            date(2000, 1, 1) <= item.start_date <= date(2000, 12, 31)
+            and item.end_date >= item.start_date
         )
         assert 1 <= (item.end_date - item.start_date).days + 1 <= 14
         assert 0.05 <= item.discount_rate <= 0.30
@@ -158,7 +159,7 @@ def test_promotion_generator_invariants_targets_events_and_inactive_product() ->
     assert len(promotion_events) == 100
 
 
-def test_short_remaining_period_adjusts_duration() -> None:
+def test_short_horizon_does_not_clip_annual_pattern_duration() -> None:
     store = EventStore()
     ctx = SimulationContext(
         2,
@@ -172,7 +173,8 @@ def test_short_remaining_period_adjusts_duration() -> None:
     ).generate(ctx)
     promotion = ctx.state.collection("promotions").all()[0]
     assert isinstance(promotion, Promotion)
-    assert promotion.start_date == promotion.end_date == date(2026, 1, 1)
+    assert (promotion.end_date - promotion.start_date).days + 1 >= 5
+    assert promotion.start_date.year == 2000
 
 
 def test_promotion_reproducibility_and_duplicate_execution() -> None:

@@ -1,7 +1,7 @@
 """Unit tests for aggregate demand generation."""
 
 from dataclasses import FrozenInstanceError
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -17,6 +17,7 @@ from dataforge.engines.demand.engine import (
     DemandEngine,
     DemandEngineConfig,
     _expected_demand,
+    _intraday_factor,
     _promotion_factor,
     _stochastic_round,
     _temporal_factor,
@@ -301,3 +302,28 @@ def test_maximum_units_save_before_publish_and_duplicate_execution() -> None:
     with pytest.raises(ValueError, match="State key already exists: tick-0"):
         engine.execute(context, clock)
     assert store.count() == before
+
+
+def test_hourly_baseline_scale_and_daily_intraday_profile() -> None:
+    config = DemandEngineConfig()
+    assert _intraday_factor(TickUnit.HOUR, 12, config) == config.lunch_factor
+    expected_daily = sum(
+        _intraday_factor(TickUnit.HOUR, hour, config) for hour in range(24)
+    )
+    assert _intraday_factor(TickUnit.DAY, 0, config) == pytest.approx(expected_daily)
+    assert _intraday_factor(TickUnit.DAY, 0, config) != pytest.approx(
+        24 * config.early_morning_factor
+    )
+
+
+def test_daily_temporal_factor_matches_sum_of_24_hourly_factors() -> None:
+    config = DemandEngineConfig()
+    day = datetime(2026, 8, 10)
+    daily = TemporalContext(0, day, TickUnit.DAY)
+    hourly_total = sum(
+        _temporal_factor(
+            TemporalContext(hour, day + timedelta(hours=hour), TickUnit.HOUR), config
+        )
+        for hour in range(24)
+    )
+    assert _temporal_factor(daily, config) == pytest.approx(hourly_total)

@@ -17,8 +17,15 @@ class MetricsContextGenerated(DomainEvent):
                 "intent_units": metrics.intent_units,
                 "unassigned_demand_units": metrics.unassigned_demand_units,
                 "price_quotes": metrics.price_quotes,
+                "total_transactions": metrics.total_transactions,
                 "completed_transactions": metrics.completed_transactions,
+                "partially_completed_transactions": (
+                    metrics.partially_completed_transactions
+                ),
                 "rejected_transactions": metrics.rejected_transactions,
+                "transaction_lines": metrics.transaction_lines,
+                "completed_lines": metrics.completed_lines,
+                "rejected_lines": metrics.rejected_lines,
                 "completed_units": metrics.completed_units,
                 "rejected_units": metrics.rejected_units,
                 "gross_sales_amount": str(metrics.gross_sales_amount),

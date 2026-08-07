@@ -21,7 +21,8 @@ from dataforge.engines.time.models import TemporalContext
 from dataforge.engines.transaction.models import (
     Transaction,
     TransactionContext,
-    TransactionStatus,
+    TransactionLine,
+    TransactionLineStatus,
 )
 from dataforge.inventory.models import InventoryItem
 from dataforge.state.collection import StateCollection
@@ -43,9 +44,10 @@ class InventoryEngine:
             context, "transaction_context", clock.tick_index, TransactionContext
         )
         completed = tuple(
-            transaction
+            (transaction, line)
             for transaction in transactions.transactions
-            if transaction.status is TransactionStatus.COMPLETED
+            for line in transaction.lines
+            if line.status is TransactionLineStatus.COMPLETED
         )
         inventory_by_key = self._active_inventory(inventory)
         self._prevalidate(completed, inventory_by_key)
@@ -53,11 +55,11 @@ class InventoryEngine:
         movements: list[InventoryMovement] = []
         changed: dict[tuple[str, str], InventoryItem] = {}
         current = dict(inventory_by_key)
-        for sequence, transaction in enumerate(completed, start=1):
-            key = (transaction.location_id, transaction.product_id)
+        for sequence, (transaction, line) in enumerate(completed, start=1):
+            key = (transaction.location_id, line.product_id)
             item = current[key]
             updated = replace_dataclass(
-                item, current_stock=item.current_stock - transaction.quantity
+                item, current_stock=item.current_stock - line.quantity
             )
             inventory.replace(item.id, updated)
             current[key] = updated
@@ -71,7 +73,7 @@ class InventoryEngine:
                     transaction_id=transaction.id,
                     basket_id=transaction.basket_id,
                     movement_type=InventoryMovementType.SALE,
-                    quantity=transaction.quantity,
+                    quantity=line.quantity,
                     stock_before=item.current_stock,
                     stock_after=updated.current_stock,
                     tick_index=clock.tick_index,
@@ -165,27 +167,27 @@ class InventoryEngine:
 
     def _prevalidate(
         self,
-        transactions: tuple[Transaction, ...],
+        transactions: tuple[tuple[Transaction, TransactionLine], ...],
         inventory: dict[tuple[str, str], InventoryItem],
     ) -> None:
         accumulated: dict[tuple[str, str], int] = {}
-        for transaction in transactions:
-            if transaction.quantity < 1:
+        for transaction, line in transactions:
+            if line.quantity < 1:
                 raise ValueError(
-                    f"Completed Transaction has invalid quantity: {transaction.id}"
+                    f"Completed TransactionLine has invalid quantity: {line.id}"
                 )
-            key = (transaction.location_id, transaction.product_id)
+            key = (transaction.location_id, line.product_id)
             item = inventory.get(key)
             if item is None:
                 raise ValueError(
                     "Completed Transaction references unavailable InventoryItem: "
                     f"{transaction.id}"
                 )
-            accumulated[key] = accumulated.get(key, 0) + transaction.quantity
+            accumulated[key] = accumulated.get(key, 0) + line.quantity
             if accumulated[key] > item.current_stock:
                 raise ValueError(
                     "Completed Transactions exceed available stock for: "
-                    f"{transaction.location_id}/{transaction.product_id}"
+                    f"{transaction.location_id}/{line.product_id}"
                 )
 
     def _tick_context[T](

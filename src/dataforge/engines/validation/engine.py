@@ -1,6 +1,6 @@
 """Fail-fast validation of master state and per-tick engine outputs."""
 
-from decimal import Decimal
+from collections import Counter
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -16,7 +16,11 @@ from dataforge.engines.replenishment.models import (
     ReplenishmentStatus,
 )
 from dataforge.engines.time.models import TemporalContext
-from dataforge.engines.transaction.models import TransactionContext, TransactionStatus
+from dataforge.engines.transaction.models import (
+    TransactionContext,
+    TransactionLineStatus,
+    TransactionStatus,
+)
 from dataforge.engines.validation.events import StateValidationCompleted
 from dataforge.engines.validation.models import ValidationContext
 from dataforge.geography.models import (
@@ -401,127 +405,109 @@ class StateValidationEngine:
     ) -> None:
         intents = {item.id: item for item in behavior.intents}
         quotes = {item.intent_id: item for item in pricing.quotes}
-        for item in transactions.transactions:
-            intent = intents.get(item.intent_id)
-            quote = quotes.get(item.quote_intent_id)
-            if intent is None or quote is None:
-                raise ValueError(
-                    f"Transaction '{item.id}' references missing intent or quote"
+        expected_baskets = {item.basket_id for item in behavior.intents}
+        actual_baskets = [item.basket_id for item in transactions.transactions]
+        if (
+            len(actual_baskets) != len(set(actual_baskets))
+            or set(actual_baskets) != expected_baskets
+        ):
+            raise ValueError("Transactions must contain exactly one basket aggregate")
+        for transaction in transactions.transactions:
+            completed = 0
+            rejected = 0
+            for line in transaction.lines:
+                intent = intents.get(line.intent_id)
+                quote = quotes.get(line.quote_intent_id)
+                if intent is None or quote is None:
+                    raise ValueError(
+                        f"TransactionLine '{line.id}' references missing "
+                        "intent or quote"
+                    )
+                identity = (
+                    transaction.basket_id,
+                    transaction.customer_id,
+                    transaction.location_id,
+                    line.product_id,
+                    transaction.channel,
+                    line.quantity,
                 )
-            identity = (
-                item.basket_id,
-                item.customer_id,
-                item.location_id,
-                item.product_id,
-                item.channel,
-                item.quantity,
-            )
-            transaction_identity = (
-                intent.basket_id,
-                intent.customer_id,
-                intent.location_id,
-                intent.product_id,
-                intent.channel,
-                intent.requested_quantity,
-            )
-            money = (
-                item.unit_price,
-                item.gross_amount,
-                item.discount_amount,
-                item.net_amount,
-                item.applied_promotion_ids,
-            )
-            quote_money = (
-                quote.unit_effective_price,
-                quote.gross_amount,
-                quote.discount_amount,
-                quote.net_amount,
-                quote.applied_promotion_ids,
-            )
-            if (
-                identity != transaction_identity
-                or money != quote_money
-                or item.gross_amount - item.discount_amount != item.net_amount
-            ):
-                raise ValueError(
-                    f"Transaction '{item.id}' is inconsistent with pricing"
+                expected_identity = (
+                    intent.basket_id,
+                    intent.customer_id,
+                    intent.location_id,
+                    intent.product_id,
+                    intent.channel,
+                    intent.requested_quantity,
                 )
-            if (item.status is TransactionStatus.COMPLETED) != (
-                item.rejection_reason is None
-            ):
-                raise ValueError(f"Transaction '{item.id}' has inconsistent status")
-        completed = tuple(
-            x
-            for x in transactions.transactions
-            if x.status is TransactionStatus.COMPLETED
-        )
-        rejected = tuple(
-            x
-            for x in transactions.transactions
-            if x.status is TransactionStatus.REJECTED
-        )
-        expected = (
-            len(completed),
-            len(rejected),
-            sum(x.quantity for x in completed),
-            sum(x.quantity for x in rejected),
-            sum((x.gross_amount for x in completed), start=Decimal("0.00")),
-            sum((x.discount_amount for x in completed), start=Decimal("0.00")),
-            sum((x.net_amount for x in completed), start=Decimal("0.00")),
-            sum((x.net_amount for x in rejected), start=Decimal("0.00")),
-        )
-        actual = (
-            transactions.completed_count,
-            transactions.rejected_count,
-            transactions.completed_units,
-            transactions.rejected_units,
-            transactions.gross_amount,
-            transactions.discount_amount,
-            transactions.net_amount,
-            transactions.lost_sales_amount,
-        )
-        if actual != expected:
-            raise ValueError(
-                f"Transaction totals are inconsistent at tick {transactions.tick_index}"
+                money = (
+                    line.unit_price,
+                    line.gross_amount,
+                    line.discount_amount,
+                    line.net_amount,
+                    line.applied_promotion_ids,
+                )
+                quote_money = (
+                    quote.unit_effective_price,
+                    quote.gross_amount,
+                    quote.discount_amount,
+                    quote.net_amount,
+                    quote.applied_promotion_ids,
+                )
+                if identity != expected_identity or money != quote_money:
+                    raise ValueError(
+                        f"TransactionLine '{line.id}' is inconsistent with pricing"
+                    )
+                if line.status is TransactionLineStatus.COMPLETED:
+                    completed += 1
+                else:
+                    rejected += 1
+            expected_status = (
+                TransactionStatus.COMPLETED
+                if not rejected
+                else TransactionStatus.REJECTED
+                if not completed
+                else TransactionStatus.PARTIALLY_COMPLETED
             )
+            if transaction.status is not expected_status:
+                raise ValueError(
+                    f"Transaction '{transaction.id}' has inconsistent status"
+                )
 
     def _validate_inventory_context(
         self, inventory: InventoryContext, transactions: TransactionContext
     ) -> None:
-        tx = {item.id: item for item in transactions.transactions}
-        sale_ids: set[str] = set()
+        expected = Counter(
+            (transaction.id, transaction.location_id, line.product_id, line.quantity)
+            for transaction in transactions.transactions
+            for line in transaction.lines
+            if line.status is TransactionLineStatus.COMPLETED
+        )
+        actual: Counter[tuple[str, str, str, int]] = Counter()
         for movement in inventory.movements:
             if movement.movement_type is not InventoryMovementType.SALE:
                 raise ValueError("InventoryContext contains non-sale movement")
-            transaction = tx.get(movement.transaction_id or "")
-            if (
-                transaction is None
-                or transaction.status is not TransactionStatus.COMPLETED
-                or transaction.id in sale_ids
-            ):
-                raise ValueError("Sale movement references invalid transaction")
-            sale_ids.add(transaction.id)
-            if (
-                (movement.location_id, movement.product_id, movement.quantity)
-                != (
-                    transaction.location_id,
-                    transaction.product_id,
-                    transaction.quantity,
+            if movement.transaction_id is None:
+                raise ValueError("Sale movement requires transaction ID")
+            actual[
+                (
+                    movement.transaction_id,
+                    movement.location_id,
+                    movement.product_id,
+                    movement.quantity,
                 )
-                or movement.stock_before - movement.quantity != movement.stock_after
+            ] += 1
+            if (
+                movement.stock_before - movement.quantity != movement.stock_after
                 or min(movement.stock_before, movement.stock_after) < 0
             ):
                 raise ValueError(f"Inventory movement '{movement.id}' is inconsistent")
-        completed_ids = {
-            x.id
-            for x in transactions.transactions
-            if x.status is TransactionStatus.COMPLETED
-        }
         if (
-            sale_ids != completed_ids
+            actual != expected
             or inventory.total_units_sold != transactions.completed_units
         ):
-            raise ValueError("Completed transactions and sale movements do not match")
+            raise ValueError(
+                "Completed transaction lines and sale movements do not match"
+            )
         changed = {(x.location_id, x.product_id) for x in inventory.movements}
         if inventory.inventory_items_changed != len(changed):
             raise ValueError("Inventory items changed count is inconsistent")
@@ -568,8 +554,13 @@ class StateValidationEngine:
             behavior.total_requested_units,
             behavior.unassigned_demand_units,
             len(pricing.quotes),
-            transactions.completed_count,
-            transactions.rejected_count,
+            transactions.total_transactions,
+            transactions.completed_transactions,
+            transactions.partially_completed_transactions,
+            transactions.rejected_transactions,
+            transactions.transaction_lines,
+            transactions.completed_lines,
+            transactions.rejected_lines,
             transactions.completed_units,
             transactions.rejected_units,
             transactions.gross_amount,
@@ -591,8 +582,13 @@ class StateValidationEngine:
             metrics.intent_units,
             metrics.unassigned_demand_units,
             metrics.price_quotes,
+            metrics.total_transactions,
             metrics.completed_transactions,
+            metrics.partially_completed_transactions,
             metrics.rejected_transactions,
+            metrics.transaction_lines,
+            metrics.completed_lines,
+            metrics.rejected_lines,
             metrics.completed_units,
             metrics.rejected_units,
             metrics.gross_sales_amount,

@@ -1,14 +1,19 @@
-"""Immutable per-tick metrics snapshot."""
+"""Results returned by a complete in-memory simulation run."""
 
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
+
+from dataforge.bootstrap.models import BootstrapRunSummary
+from dataforge.scenario.models import ScenarioDefinition
+from dataforge.simulation.orchestrator import SimulationRunSummary
+from dataforge.state.simulation_state import SimulationState
 
 
 @dataclass(frozen=True, slots=True)
-class MetricsContext:
-    tick_index: int
-    current_time: datetime
+class RunMetricsSummary:
+    """Aggregate the official per-tick MetricsContext snapshots for one run."""
+
+    ticks_aggregated: int
     demand_records: int
     demand_units: int
     purchase_intents: int
@@ -35,3 +40,14 @@ class MetricsContext:
     replenishments_scheduled: int
     replenishments_completed: int
     units_replenished: int
+
+
+@dataclass(frozen=True, slots=True)
+class SimulationResult:
+    """Expose the real summaries and final state of one simulation execution."""
+
+    scenario: ScenarioDefinition
+    bootstrap_summary: BootstrapRunSummary
+    simulation_summary: SimulationRunSummary
+    metrics_summary: RunMetricsSummary
+    state: SimulationState

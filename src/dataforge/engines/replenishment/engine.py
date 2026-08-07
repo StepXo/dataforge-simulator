@@ -1,10 +1,11 @@
 """Schedule and complete inventory replenishments across ticks."""
 
 from dataclasses import replace as replace_dataclass
+from datetime import timedelta
 
 from pydantic import BaseModel, Field, model_validator
 
-from dataforge.core.simulation_clock import SimulationClock
+from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.engines.inventory.events import InventoryMovementCreated
 from dataforge.engines.inventory.models import (
@@ -31,13 +32,13 @@ CONTEXT_COLLECTION = "replenishment_context"
 
 
 class ReplenishmentEngineConfig(BaseModel):
-    min_lead_time_ticks: int = Field(default=1, ge=1)
-    max_lead_time_ticks: int = Field(default=3, ge=1)
+    min_lead_time_days: int = Field(default=1, ge=1)
+    max_lead_time_days: int = Field(default=3, ge=1)
 
     @model_validator(mode="after")
     def validate_range(self) -> "ReplenishmentEngineConfig":
-        if self.max_lead_time_ticks < self.min_lead_time_ticks:
-            raise ValueError("max_lead_time_ticks must be at least min_lead_time_ticks")
+        if self.max_lead_time_days < self.min_lead_time_days:
+            raise ValueError("max_lead_time_days must be at least min_lead_time_days")
         return self
 
 
@@ -119,10 +120,11 @@ class ReplenishmentEngine:
                 or stock.id in pending_inventory_ids
             ):
                 continue
-            lead_time = context.random_engine.randint(
-                self._config.min_lead_time_ticks,
-                self._config.max_lead_time_ticks,
+            lead_time_days = context.random_engine.randint(
+                self._config.min_lead_time_days,
+                self._config.max_lead_time_days,
             )
+            lead_time_ticks = _days_to_ticks(lead_time_days, clock)
             sequence = 1 + sum(
                 item.requested_tick_index == clock.tick_index
                 for item in self._pending_values(pending_collection)
@@ -134,7 +136,7 @@ class ReplenishmentEngine:
                 product_id=stock.product_id,
                 requested_quantity=stock.max_stock - stock.current_stock,
                 requested_tick_index=clock.tick_index,
-                due_tick_index=clock.tick_index + lead_time,
+                due_tick_index=clock.tick_index + lead_time_ticks,
                 created_at=temporal.current_time,
                 status=ReplenishmentStatus.PENDING,
             )
@@ -269,3 +271,8 @@ class ReplenishmentEngine:
         if not isinstance(value, expected_type):
             raise ValueError(f"{name} context is missing for tick: {tick_index}")
         return value
+
+
+def _days_to_ticks(days: int, clock: SimulationClock) -> int:
+    """Convert a business duration in whole days to the current tick resolution."""
+    return int(timedelta(days=days) / TICK_DELTAS[clock.tick_unit])

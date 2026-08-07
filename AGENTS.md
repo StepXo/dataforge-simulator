@@ -64,7 +64,7 @@
 - Customer behavior must preserve assigned units plus unassigned units equal to demand.
 - All customer behavior randomness uses RandomEngine and stable iteration order.
 - Store CustomerBehaviorContext before publishing its event.
-- Never assume a global Product is offered at every Location; InventoryItem defines the Location × Product assortment.
+- Never assume a global Product is offered at every Location; InventoryItem defines the Location Ã— Product assortment.
 - Zero stock means offered but out of stock, not absent from the assortment.
 - No commercial activity may occur before Location.opened_at.
 - CustomerBehavior fulfillment is same-city only in the MVP.
@@ -85,7 +85,7 @@
 - Rejected transactions never change Inventory, and ReorderSignal never implies replenishment.
 - InventoryItem remains immutable and must be updated through explicit replacement.
 - Check duplicate InventoryEngine execution before modifying stock.
-- Never replenish immediately when lead time is at least one tick.
+- Never replenish immediately when lead time is at least one day.
 - Keep at most one pending replenishment per InventoryItem and never exceed max_stock.
 - Complete due replenishments before scheduling new ones; ReplenishmentEngine never creates sales.
 - All replenishment randomness must use RandomEngine.
@@ -95,3 +95,40 @@
 - StateValidationEngine must remain the final MVP engine; validation detects and never repairs.
 - Validate invariants between outputs without duplicating prior engine algorithms or modifying business state.
 - An invalid tick must fail immediately.
+- Scenario files describe configuration, never behavior; generators and engines must not read Scenario YAML directly.
+- Resolve relative scenario paths against the scenario file itself.
+- Reuse existing configuration models and do not expose ceremonial options for components without parameters.
+- SimulationRunner converts ScenarioDefinition into fresh executable runtime objects.
+- Never infer country, business type, scenario behavior, or configuration semantics from a file name or path.
+- Geography sources may use any file name; their content must be validated against GeographyDefinition.
+- Product catalog sources may use any file name; their content must be validated against ProductCatalogDefinition.
+- Example files such as colombia.yaml, mexico.yaml, taqueria.yaml, or farmacia.yaml are fixtures/examples only and must never become runtime conventions.
+- Scenario source paths are user-provided configuration; validated file content, never the filename, is the source of truth.
+- SimulationRunner is the explicit composition root for the standard MVP simulation pipeline.
+- SimulationRunner must use existing loaders, generators, engines, and orchestrators rather than duplicating their logic.
+- The standard engine order must remain explicit; do not introduce engine or generator registries without a feature that justifies them.
+- Every SimulationRunner.run() must build a fresh runtime state, clock, and RandomEngine.
+- Scenario filenames and paths carry no business semantics; validated configuration content is the source of truth.
+- SimulationRunner does not export or persist data.
+- CLI and API runtime surfaces must delegate full execution to SimulationRunner; never duplicate bootstrap or engine assembly.
+- Public runtime summaries must read official values from SimulationResult and existing contexts rather than recalculating business logic.
+- POST /simulation/verify is synchronous and must not persist or export simulation state.
+- Existing API endpoints must remain backward compatible.
+- Never report a simulation as successful if SimulationRunner or StateValidationEngine failed.
+- Business durations must not change meaning when TickUnit changes; convert domain durations to ticks at runtime.
+- Replenishment lead times are expressed in days, never raw ticks.
+- Demand base ranges represent an hourly baseline and must be scaled to the duration represented by each tick.
+- A daily demand tick must account for the intraday time-of-day profile rather than treating the whole day as the clock hour at tick start.
+- Changing simulation resolution must change temporal granularity, not the underlying business rate semantics.
+- Run-level metrics must aggregate MetricsContext snapshots; never present the final tick as the total simulation result.
+- Master-data bootstrap must never depend on simulation end_datetime; extending the horizon must not rewrite initial state.
+- DataForge simulations must preserve horizon invariance: with the same seed, start time, and configuration, extending end_datetime must not change already simulated ticks.
+- Bootstrap customers represent the customer population existing at simulation start; future customer growth or churn belongs to a dedicated runtime feature.
+- Bootstrap locations represent locations already operating at simulation start; future openings require a dedicated runtime feature.
+- PromotionBootstrapGenerator creates annual promotion patterns, not horizon-bound promotion occurrences.
+- Promotion patterns exist independently of the simulation date range and may recur once per calendar year.
+- Annual promotion occurrence variation must be deterministic for a given seed, promotion, and year and must not depend on simulation horizon length.
+- Transaction represents one finalized basket/checkout; product-level outcomes belong to TransactionLine.
+- Never use transaction as a synonym for product line in public metrics or documentation.
+- InventoryEngine applies stock changes from completed TransactionLines, not from basket-level Transaction status alone.
+- Out-of-stock metrics count events/signals unless explicitly labeled as unique inventory items.

@@ -16,6 +16,8 @@ from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
 )
+from dataforge.engines.inventory.engine import InventoryEngine
+from dataforge.engines.inventory.models import InventoryContext
 from dataforge.engines.pricing.models import PriceQuote, PricingContext
 from dataforge.engines.time.models import TemporalContext
 from dataforge.engines.transaction.engine import TransactionEngine
@@ -39,10 +41,11 @@ def purchase_intent(
     quantity: int = 3,
     product_id: str = "product-a",
     location_id: str = "location-a",
+    basket_id: str = "basket-0-000001",
 ) -> PurchaseIntent:
     return PurchaseIntent(
         identifier,
-        "basket-0-000001",
+        basket_id,
         "customer-a",
         location_id,
         product_id,
@@ -229,20 +232,33 @@ def test_local_ledger_prevents_overselling_and_preserves_order() -> None:
         intents=(first, second),
         inventory=(InventoryItem("i", "location-a", "product-a", 5, 0, 10, True),),
     )
-    assert [item.status for item in value.transactions] == [
-        TransactionStatus.COMPLETED,
-        TransactionStatus.REJECTED,
+    assert len(value.transactions) == 1
+    transaction = value.transactions[0]
+    assert transaction.status is TransactionStatus.PARTIALLY_COMPLETED
+    assert [line.status.value for line in transaction.lines] == [
+        "completed",
+        "rejected",
     ]
+    assert value.total_transactions == 1
+    assert value.partially_completed_transactions == 1
+    assert value.transaction_lines == 2
     assert value.completed_units == 4 and value.rejected_units == 4
     assert value.net_amount == Decimal("360.00")
     assert value.lost_sales_amount == Decimal("360.00")
     assert context.state.collection("inventory").require("i").current_stock == 5
     assert [event.event_type for event in store.all_events()] == [
-        "TransactionCompleted",
-        "TransactionRejected",
+        "TransactionPartiallyCompleted",
         "TransactionContextGenerated",
     ]
     assert store.all_events()[0].payload["basket_id"] == "basket-0-000001"
+    InventoryEngine().execute(
+        context, SimulationClock(TimeRange(NOW, NOW), TickUnit.HOUR)
+    )
+    inventory_context = context.state.collection("inventory_context").require("tick-0")
+    assert isinstance(inventory_context, InventoryContext)
+    assert len(inventory_context.movements) == 1
+    assert inventory_context.total_units_sold == 4
+    assert context.state.collection("inventory").require("i").current_stock == 1
 
 
 def test_ledger_is_independent_by_product_and_location() -> None:
@@ -322,7 +338,7 @@ def test_empty_context_and_models_are_immutable() -> None:
         "TransactionContextGenerated"
     ]
     with pytest.raises(FrozenInstanceError):
-        value.__setattr__("completed_count", 1)
+        value.__setattr__("total_transactions", 1)
 
 
 @pytest.mark.parametrize(
@@ -353,3 +369,56 @@ def test_save_before_publish_and_duplicate_execution() -> None:
     with pytest.raises(ValueError, match="already exists"):
         engine.execute(context, clock)
     assert store.count() == before
+
+
+def test_three_product_intents_create_one_basket_transaction() -> None:
+    intents = tuple(
+        purchase_intent(f"intent-{suffix}", 1, product_id=f"product-{suffix}")
+        for suffix in ("a", "b", "c")
+    )
+    context, clock, _ = runtime(intents=intents)
+    for suffix in ("b", "c"):
+        item = Product(
+            f"product-{suffix}",
+            suffix.upper(),
+            "category-a",
+            "COP",
+            Decimal("100.00"),
+            Decimal("50.00"),
+            Decimal("0.5000"),
+            1.0,
+            True,
+        )
+        context.state.collection("products").add(item.id, item)
+        context.state.collection("inventory").add(
+            f"inventory-{suffix}",
+            InventoryItem(f"inventory-{suffix}", "location-a", item.id, 5, 0, 10, True),
+        )
+    TransactionEngine().execute(context, clock)
+    value = context.state.collection("transaction_context").require("tick-0")
+    assert isinstance(value, TransactionContext)
+    assert value.total_transactions == 1
+    assert value.transaction_lines == 3
+    assert len(value.transactions[0].lines) == 3
+    assert value.transactions[0].status is TransactionStatus.COMPLETED
+
+
+def test_three_rejected_lines_create_one_rejected_basket() -> None:
+    intents = tuple(purchase_intent(f"intent-{index}", 1) for index in range(3))
+    value, _, _ = result(
+        intents=intents,
+        inventory=(InventoryItem("i", "location-a", "product-a", 0, 0, 10, True),),
+    )
+    assert value.total_transactions == 1
+    assert value.transaction_lines == value.rejected_lines == 3
+    assert value.transactions[0].status is TransactionStatus.REJECTED
+
+
+def test_same_customer_with_two_baskets_creates_two_transactions() -> None:
+    intents = (
+        purchase_intent("intent-a", 1, basket_id="basket-a"),
+        purchase_intent("intent-b", 1, basket_id="basket-b"),
+    )
+    value, _, _ = result(intents=intents)
+    assert value.total_transactions == 2
+    assert [item.basket_id for item in value.transactions] == ["basket-a", "basket-b"]
