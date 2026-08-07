@@ -3,8 +3,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from dataforge.api.app import app
 from dataforge.api.routes.simulations import event_store
-from dataforge.main import app
 
 client = TestClient(app)
 

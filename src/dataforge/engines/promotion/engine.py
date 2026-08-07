@@ -8,7 +8,7 @@ from dataforge.core.simulation_context import SimulationContext
 from dataforge.engines.promotion.events import PromotionContextGenerated
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
-from dataforge.promotions.models import Promotion
+from dataforge.generators.promotions.models import Promotion
 
 PROMOTION_CONTEXT_COLLECTION = "promotion_context"
 PROMOTIONS_COLLECTION = "promotions"

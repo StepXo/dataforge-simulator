@@ -17,7 +17,7 @@ empresariales concretos.
 
 ```bash
 uv sync --dev
-uv run uvicorn dataforge.main:app --reload
+uv run uvicorn dataforge.api.app:app --reload
 ```
 
 La documentaci?n OpenAPI queda disponible en `http://127.0.0.1:8000/docs`.
@@ -254,7 +254,7 @@ relaciones. Actualmente existe un ejemplo peque?o en
 ```python
 from pathlib import Path
 
-from dataforge.configuration.geography import load_geography
+from dataforge.config.geography import load_geography
 
 geography = load_geography(Path("configs/geography/colombia.yaml"))
 ```
@@ -622,3 +622,18 @@ docker run --rm -p 8000:8000 dataforge-simulator
 Esta versi?n solo genera entidades gen?ricas en memoria. No incluye dominios de
 negocio, persistencia, bases de datos, archivos de configuraci?n o exportaci?n,
 autenticaci?n, procesamiento as?ncrono, interfaces web ni despliegue.
+## Smoke and temporal regression tests
+
+`configs/scenarios/smoke-test.yaml` is a small technical fixture that exercises the
+complete bootstrap and ten-engine runtime; it does not represent a real business.
+Use it for routine smoke validation instead of long-running business scenarios.
+
+```bash
+uv run pytest -m "not slow" tests/runtime/test_simulation_regression.py tests/test_simulate_cli.py tests/api/test_runtime_verification.py
+uv run pytest -m slow tests/runtime/test_simulation_regression.py
+uv run pytest
+```
+
+The fast suite covers day and month horizons with hourly and daily ticks. The slow
+suite owns the complete temporal matrix, including six-month hourly simulations.
+The project does not install `pytest-xdist`, so these tests run with one worker.

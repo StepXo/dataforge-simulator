@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.collection import StateCollection
+from dataforge.core.state.simulation_state import require_tick_context
+from dataforge.core.value_objects import build_tick_sequence_id
 from dataforge.engines.inventory.events import InventoryMovementCreated
 from dataforge.engines.inventory.models import (
     InventoryContext,
@@ -24,8 +27,7 @@ from dataforge.engines.replenishment.models import (
     ReplenishmentStatus,
 )
 from dataforge.engines.time.models import TemporalContext
-from dataforge.inventory.models import InventoryItem
-from dataforge.state.collection import StateCollection
+from dataforge.generators.inventory.models import InventoryItem
 
 PENDING_COLLECTION = "pending_replenishments"
 CONTEXT_COLLECTION = "replenishment_context"
@@ -53,11 +55,19 @@ class ReplenishmentEngine:
         output = self._prepare_output(context, context_key)
         inventory_collection = self._required_collection(context, "inventory")
         inventory = self._inventory_by_id(inventory_collection)
-        temporal = self._tick_context(
-            context, "temporal_context", clock.tick_index, TemporalContext
+        temporal = require_tick_context(
+            context.state,
+            "temporal_context",
+            clock.tick_index,
+            TemporalContext,
+            owner="replenishment",
         )
-        inventory_context = self._tick_context(
-            context, "inventory_context", clock.tick_index, InventoryContext
+        inventory_context = require_tick_context(
+            context.state,
+            "inventory_context",
+            clock.tick_index,
+            InventoryContext,
+            owner="replenishment",
         )
         pending_collection = self._pending_collection(context)
         replenishments = self._pending_values(pending_collection)
@@ -82,9 +92,8 @@ class ReplenishmentEngine:
                 inventory[stock.id] = updated_stock
                 movements.append(
                     InventoryMovement(
-                        id=(
-                            f"inventory-movement-{clock.tick_index}-"
-                            f"{len(movements) + 1:06d}"
+                        id=build_tick_sequence_id(
+                            "inventory-movement", clock.tick_index, len(movements) + 1
                         ),
                         inventory_id=stock.id,
                         location_id=stock.location_id,
@@ -130,7 +139,7 @@ class ReplenishmentEngine:
                 for item in self._pending_values(pending_collection)
             )
             replenishment = PendingReplenishment(
-                id=f"replenishment-{clock.tick_index}-{sequence:06d}",
+                id=build_tick_sequence_id("replenishment", clock.tick_index, sequence),
                 inventory_id=stock.id,
                 location_id=stock.location_id,
                 product_id=stock.product_id,
@@ -258,19 +267,6 @@ class ReplenishmentEngine:
         if not context.state.has_collection(name):
             raise ValueError(f"Required replenishment collection is missing: {name}")
         return context.state.collection(name)
-
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        collection = self._required_collection(context, name)
-        value = collection.get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(f"{name} context is missing for tick: {tick_index}")
-        return value
 
 
 def _days_to_ticks(days: int, clock: SimulationClock) -> int:

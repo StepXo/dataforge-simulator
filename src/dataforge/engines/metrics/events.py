@@ -1,7 +1,7 @@
 """Event published for a completed metrics snapshot."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.metrics.models import MetricsContext
-from dataforge.events.event import DomainEvent
 
 
 class MetricsContextGenerated(DomainEvent):

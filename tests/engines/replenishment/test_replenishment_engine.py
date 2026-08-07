@@ -6,6 +6,8 @@ from datetime import date, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -27,9 +29,7 @@ from dataforge.engines.replenishment.models import (
     ReplenishmentStatus,
 )
 from dataforge.engines.time.models import TemporalContext
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.inventory.models import InventoryItem
+from dataforge.generators.inventory.models import InventoryItem
 
 NOW = datetime(2026, 8, 15, 12)
 

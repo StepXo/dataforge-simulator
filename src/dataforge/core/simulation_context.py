@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass, field
 
+from dataforge.core.events.event_bus import EventBus
 from dataforge.core.random_engine import RandomEngine
+from dataforge.core.state.simulation_state import SimulationState
 from dataforge.core.value_objects import DateRange
-from dataforge.events.event_bus import EventBus
-from dataforge.state.simulation_state import SimulationState
 
 
 @dataclass(frozen=True, slots=True)

@@ -2,6 +2,7 @@
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.simulation_state import require_tick_context
 from dataforge.engines.customer_behavior.models import CustomerBehaviorContext
 from dataforge.engines.demand.models import DemandContext
 from dataforge.engines.inventory.models import InventoryContext
@@ -20,22 +21,38 @@ class MetricsEngine:
 
     def execute(self, context: SimulationContext, clock: SimulationClock) -> None:
         tick = clock.tick_index
-        temporal = self._tick_context(
-            context, "temporal_context", tick, TemporalContext
+        temporal = require_tick_context(
+            context.state, "temporal_context", tick, TemporalContext, owner="metrics"
         )
-        demand = self._tick_context(context, "demand_context", tick, DemandContext)
-        behavior = self._tick_context(
-            context, "customer_behavior_context", tick, CustomerBehaviorContext
+        demand = require_tick_context(
+            context.state, "demand_context", tick, DemandContext, owner="metrics"
         )
-        pricing = self._tick_context(context, "pricing_context", tick, PricingContext)
-        transactions = self._tick_context(
-            context, "transaction_context", tick, TransactionContext
+        behavior = require_tick_context(
+            context.state,
+            "customer_behavior_context",
+            tick,
+            CustomerBehaviorContext,
+            owner="metrics",
         )
-        inventory = self._tick_context(
-            context, "inventory_context", tick, InventoryContext
+        pricing = require_tick_context(
+            context.state, "pricing_context", tick, PricingContext, owner="metrics"
         )
-        replenishment = self._tick_context(
-            context, "replenishment_context", tick, ReplenishmentContext
+        transactions = require_tick_context(
+            context.state,
+            "transaction_context",
+            tick,
+            TransactionContext,
+            owner="metrics",
+        )
+        inventory = require_tick_context(
+            context.state, "inventory_context", tick, InventoryContext, owner="metrics"
+        )
+        replenishment = require_tick_context(
+            context.state,
+            "replenishment_context",
+            tick,
+            ReplenishmentContext,
+            owner="metrics",
         )
         self._validate(demand, behavior, transactions, inventory)
 
@@ -108,17 +125,3 @@ class MetricsEngine:
             != transactions.net_amount
         ):
             raise ValueError("Sales monetary metrics are inconsistent")
-
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        if not context.state.has_collection(name):
-            raise ValueError(f"Required metrics collection is missing: {name}")
-        value = context.state.collection(name).get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(f"{name} context is missing for tick: {tick_index}")
-        return value

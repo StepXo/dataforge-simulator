@@ -5,6 +5,8 @@ from decimal import Decimal
 
 import pytest
 
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -13,13 +15,15 @@ from dataforge.core.value_objects import DateRange, TimeRange
 from dataforge.engines.demand.engine import DemandEngine
 from dataforge.engines.promotion.engine import PromotionEngine
 from dataforge.engines.time.engine import TimeEngine
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
-from dataforge.promotions.models import Promotion, PromotionChannel, PromotionTargetType
-from dataforge.simulation.orchestrator import SimulationOrchestrator
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
+from dataforge.generators.promotions.models import (
+    Promotion,
+    PromotionChannel,
+    PromotionTargetType,
+)
+from dataforge.runtime.orchestrator import SimulationOrchestrator
 
 
 def runtime() -> tuple[SimulationContext, SimulationClock, EventStore]:

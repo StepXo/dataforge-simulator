@@ -17,14 +17,11 @@ class BootstrapRunner:
         """Run all generators and summarize their changes to state."""
         initial_collections = len(context.state.collection_names())
         initial_records = context.state.total_records
-        generators_executed = 0
-
         for generator in self._generators:
             generator.generate(context)
-            generators_executed += 1
 
         return BootstrapRunSummary(
-            generators_executed=generators_executed,
+            generators_executed=len(self._generators),
             collections_created=(
                 len(context.state.collection_names()) - initial_collections
             ),

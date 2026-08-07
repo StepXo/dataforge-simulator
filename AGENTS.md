@@ -132,3 +132,5 @@
 - Never use transaction as a synonym for product line in public metrics or documentation.
 - InventoryEngine applies stock changes from completed TransactionLines, not from basket-level Transaction status alone.
 - Out-of-stock metrics count events/signals unless explicitly labeled as unique inventory items.
+- Use the dedicated smoke-test scenario for runtime smoke validation; never use long-running business scenarios as the default smoke test.
+- Multi-month hourly simulations belong to slow temporal regression tests, not the default fast test suite.

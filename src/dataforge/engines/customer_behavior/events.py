@@ -1,7 +1,7 @@
 """Events published by the customer behavior engine."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.customer_behavior.models import CustomerBehaviorContext
-from dataforge.events.event import DomainEvent
 
 
 class CustomerBehaviorContextGenerated(DomainEvent):

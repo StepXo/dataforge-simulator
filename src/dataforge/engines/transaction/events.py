@@ -1,7 +1,7 @@
 """Commercial basket events published by the transaction engine."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.transaction.models import Transaction, TransactionContext
-from dataforge.events.event import DomainEvent
 
 
 def _transaction_payload(transaction: Transaction) -> dict[str, object]:

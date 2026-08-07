@@ -4,6 +4,8 @@ from datetime import date, datetime
 
 import pytest
 
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
@@ -12,10 +14,12 @@ from dataforge.core.value_objects import DateRange, TimeRange
 from dataforge.engines.promotion.engine import PromotionEngine
 from dataforge.engines.promotion.models import PromotionContext
 from dataforge.engines.time.engine import TimeEngine
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.promotions.models import Promotion, PromotionChannel, PromotionTargetType
-from dataforge.simulation.orchestrator import SimulationOrchestrator
+from dataforge.generators.promotions.models import (
+    Promotion,
+    PromotionChannel,
+    PromotionTargetType,
+)
+from dataforge.runtime.orchestrator import SimulationOrchestrator
 
 
 def runtime(start: datetime, end: datetime, tick_unit: TickUnit):

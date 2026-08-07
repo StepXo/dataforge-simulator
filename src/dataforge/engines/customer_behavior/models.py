@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from dataforge.customers.models import PreferredChannel
+from dataforge.generators.customers.models import PreferredChannel
 
 
 @dataclass(frozen=True, slots=True)

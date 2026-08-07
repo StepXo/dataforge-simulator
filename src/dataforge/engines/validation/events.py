@@ -1,7 +1,7 @@
 """Event emitted after successful state validation."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.validation.models import ValidationContext
-from dataforge.events.event import DomainEvent
 
 
 class StateValidationCompleted(DomainEvent):

@@ -2,7 +2,7 @@
 
 from fastapi.testclient import TestClient
 
-from dataforge.main import app
+from dataforge.api.app import app
 
 client = TestClient(app)
 

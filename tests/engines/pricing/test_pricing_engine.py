@@ -6,12 +6,13 @@ from decimal import Decimal
 
 import pytest
 
+from dataforge.core.events.event_bus import EventBus
+from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import DateRange, TimeRange
-from dataforge.customers.models import PreferredChannel
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
@@ -20,12 +21,11 @@ from dataforge.engines.pricing.engine import PricingEngine
 from dataforge.engines.pricing.models import ZERO_MONEY, PriceQuote, PricingContext
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
-from dataforge.events.event_bus import EventBus
-from dataforge.events.event_store import EventStore
-from dataforge.geography.models import Location
-from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
-from dataforge.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.customers.models import PreferredChannel
+from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.models import InventoryItem
+from dataforge.generators.products.models import Product
+from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
 
 NOW = datetime(2026, 8, 15, 12)
 

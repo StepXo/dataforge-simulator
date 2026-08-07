@@ -1,7 +1,7 @@
 """Events published by the demand engine."""
 
+from dataforge.core.events.event import DomainEvent
 from dataforge.engines.demand.models import DemandContext
-from dataforge.events.event import DomainEvent
 
 
 class DemandContextGenerated(DomainEvent):

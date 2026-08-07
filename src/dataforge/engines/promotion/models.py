@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from dataforge.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
 
 
 @dataclass(frozen=True, slots=True)

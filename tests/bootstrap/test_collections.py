@@ -3,7 +3,7 @@
 import pytest
 
 from dataforge.bootstrap.collections import prepare_empty_collections
-from dataforge.state.simulation_state import SimulationState
+from dataforge.core.state.simulation_state import SimulationState
 
 
 def test_prepare_empty_collections_creates_missing_and_reuses_empty() -> None:
