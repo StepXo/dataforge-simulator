@@ -665,3 +665,14 @@ storage representation is imposed.
 `RunMetricsSummary` is intentionally not an ODM dataset because the current runtime
 has no logical run identifier. It remains the in-memory summary for one completed
 execution.
+
+### Incremental simulation output
+
+The default runner remains an in-memory debugging mode and retains every tick context. When an `OperationalDataSink` is supplied, the runtime streams format-independent operational records without writing files:
+
+```text
+bootstrap -> master rows -> tick -> validate -> historical rows -> sink
+          -> evict tick history -> next tick -> final inventory snapshot
+```
+
+Master/current state (including current inventory and pending replenishments) remains available to future ticks. Only validated historical contexts are removed, and only after the sink accepts their rows. Run metrics are accumulated incrementally. Replenishments are emitted once as a final operational snapshot so their final status is preserved. No CSV or Parquet exporter is provided yet.

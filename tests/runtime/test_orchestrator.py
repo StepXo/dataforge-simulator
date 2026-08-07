@@ -141,3 +141,21 @@ def test_engine_can_produce_many_actions_during_each_execution() -> None:
     assert engine.execution_count == 3
     assert summary.engine_executions == 3
     assert len(actions) == 15
+
+
+def test_post_tick_error_prevents_clock_advance() -> None:
+    clock = make_clock()
+    error = OSError("sink failed")
+
+    def fail_after_tick(
+        context: SimulationContext, current_clock: SimulationClock
+    ) -> None:
+        assert current_clock.tick_index == 0
+        raise error
+
+    with pytest.raises(OSError) as raised:
+        SimulationOrchestrator([]).run(make_context(), clock, post_tick=fail_after_tick)
+
+    assert raised.value is error
+    assert clock.tick_index == 0
+    assert clock.current_time == datetime(2026, 1, 1)

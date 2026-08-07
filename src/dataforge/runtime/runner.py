@@ -22,6 +22,7 @@ from dataforge.engines.replenishment.engine import ReplenishmentEngine
 from dataforge.engines.time.engine import TimeEngine
 from dataforge.engines.transaction.engine import TransactionEngine
 from dataforge.engines.validation.engine import StateValidationEngine
+from dataforge.export.operational.sink import OperationalDataSink
 from dataforge.generators.customers.generator import CustomerGenerator
 from dataforge.generators.geography.generator import GeographyGenerator
 from dataforge.generators.inventory.generator import InventoryBootstrapGenerator
@@ -29,6 +30,7 @@ from dataforge.generators.products.generator import ProductGenerator
 from dataforge.generators.promotions.generator import PromotionBootstrapGenerator
 from dataforge.runtime.orchestrator import SimulationOrchestrator
 from dataforge.runtime.result import SimulationResult
+from dataforge.runtime.streaming import IncrementalSimulationOutput
 from dataforge.runtime.summary import aggregate_run_metrics
 from dataforge.scenario.loader import load_scenario
 from dataforge.scenario.models import ScenarioDefinition
@@ -37,35 +39,36 @@ from dataforge.scenario.models import ScenarioDefinition
 class SimulationRunner:
     """Build and execute a fresh standard runtime for one scenario."""
 
-    def __init__(self, scenario: ScenarioDefinition) -> None:
+    def __init__(
+        self, scenario: ScenarioDefinition, sink: OperationalDataSink | None = None
+    ) -> None:
         self._scenario = scenario
+        self._sink = sink
 
     @classmethod
-    def from_file(cls, path: Path) -> "SimulationRunner":
+    def from_file(
+        cls, path: Path, sink: OperationalDataSink | None = None
+    ) -> "SimulationRunner":
         """Create a runner from the existing scenario YAML loader."""
-        return cls(load_scenario(path))
+        return cls(load_scenario(path), sink=sink)
 
     def run(self) -> SimulationResult:
-        """Bootstrap and execute one independent in-memory simulation."""
+        """Bootstrap and execute one independent simulation runtime."""
         geography = load_geography(self._scenario.geography.source)
         catalog = load_product_catalog(self._scenario.products.source)
-
         simulation = self._scenario.simulation
         state = SimulationState()
-        random_engine = RandomEngine(simulation.seed)
-        event_store = EventStore()
-        event_bus = EventBus(event_store)
+        event_store = EventStore(retain_events=self._sink is None)
         context = SimulationContext(
             seed=simulation.seed,
             date_range=DateRange(
                 simulation.start_datetime.date(), simulation.end_datetime.date()
             ),
-            random_engine=random_engine,
-            event_bus=event_bus,
+            random_engine=RandomEngine(simulation.seed),
+            event_bus=EventBus(event_store),
             state=state,
         )
-
-        bootstrap = BootstrapRunner(
+        bootstrap_summary = BootstrapRunner(
             [
                 GeographyGenerator(geography, self._scenario.locations),
                 ProductGenerator(catalog),
@@ -73,9 +76,12 @@ class SimulationRunner:
                 InventoryBootstrapGenerator(self._scenario.inventory),
                 PromotionBootstrapGenerator(self._scenario.promotions),
             ]
+        ).run(context)
+        output = (
+            IncrementalSimulationOutput(self._sink) if self._sink is not None else None
         )
-        bootstrap_summary = bootstrap.run(context)
-
+        if output is not None:
+            output.write_master(context)
         clock = SimulationClock(
             TimeRange(simulation.start_datetime, simulation.end_datetime),
             simulation.tick_unit,
@@ -94,10 +100,17 @@ class SimulationRunner:
                 StateValidationEngine(),
             ]
         )
-        simulation_summary = orchestrator.run(context, clock)
-        metrics_summary = aggregate_run_metrics(
-            state, simulation_summary.ticks_processed
+        simulation_summary = orchestrator.run(
+            context, clock, post_tick=output.write_tick if output is not None else None
         )
+        if output is not None:
+            output.write_final(context)
+            metrics_summary = output.metrics_summary()
+            output.close()
+        else:
+            metrics_summary = aggregate_run_metrics(
+                state, simulation_summary.ticks_processed
+            )
         return SimulationResult(
             scenario=self._scenario,
             bootstrap_summary=bootstrap_summary,

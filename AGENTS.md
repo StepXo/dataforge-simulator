@@ -140,3 +140,9 @@
 - Transactions are basket-level datasets and TransactionLines are product-level datasets.
 - Operational datasets must distinguish current snapshots from historical facts.
 - Star-schema dimensions and facts must not leak into the operational model.
+- Historical tick data may only be evicted after StateValidationEngine succeeds and the configured OperationalDataSink accepts the tick output.
+- Streaming mode must retain master/current state required by future ticks while releasing historical tick contexts that are no longer needed.
+- Simulation business logic must remain identical between full-history and streaming modes.
+- RunMetricsSummary must be computable incrementally; never retain MetricsContext history solely for final aggregation.
+- Physical exporters consume incremental operational output through the sink contract and must not require the full simulation history in memory.
+- A failed output write must never be followed by tick eviction or clock advancement.

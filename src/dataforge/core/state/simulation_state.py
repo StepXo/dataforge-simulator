@@ -38,6 +38,18 @@ class SimulationState:
             collection.clear()
         self._collections.clear()
 
+    def evict_tick(
+        self,
+        tick_index: int,
+        collection_names: tuple[str, ...],
+    ) -> None:
+        """Remove one completed tick from explicitly named collections."""
+        key = f"tick-{tick_index}"
+        for name in collection_names:
+            collection = self._collections.get(name)
+            if collection is not None and collection.contains(key):
+                collection.remove(key)
+
     @property
     def total_records(self) -> int:
         """Return the total number of records across all collections."""
