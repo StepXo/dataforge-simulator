@@ -12,6 +12,7 @@ ZERO_MONEY = Decimal("0.00")
 @dataclass(frozen=True, slots=True)
 class PriceQuote:
     intent_id: str
+    basket_id: str
     customer_id: str
     location_id: str
     product_id: str

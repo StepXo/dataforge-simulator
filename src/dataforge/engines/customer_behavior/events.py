@@ -19,6 +19,7 @@ class CustomerBehaviorContextGenerated(DomainEvent):
                 "intents": [
                     {
                         "id": intent.id,
+                        "basket_id": intent.basket_id,
                         "customer_id": intent.customer_id,
                         "location_id": intent.location_id,
                         "product_id": intent.product_id,

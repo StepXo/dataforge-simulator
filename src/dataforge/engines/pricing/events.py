@@ -20,6 +20,7 @@ class PricingContextGenerated(DomainEvent):
                 "quotes": [
                     {
                         "intent_id": quote.intent_id,
+                        "basket_id": quote.basket_id,
                         "customer_id": quote.customer_id,
                         "location_id": quote.location_id,
                         "product_id": quote.product_id,

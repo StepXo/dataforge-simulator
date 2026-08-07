@@ -16,6 +16,7 @@ from dataforge.engines.demand.engine import DemandEngine
 from dataforge.engines.pricing.engine import PricingEngine
 from dataforge.engines.promotion.engine import PromotionEngine
 from dataforge.engines.time.engine import TimeEngine
+from dataforge.engines.transaction.engine import TransactionEngine
 from dataforge.events.event_bus import EventBus
 from dataforge.events.event_store import EventStore
 from dataforge.geography.models import Location
@@ -105,16 +106,18 @@ def test_full_pipeline_preserves_context_history() -> None:
             DemandEngine(),
             CustomerBehaviorEngine(),
             PricingEngine(),
+            TransactionEngine(),
         ]
     ).run(context, clock)
     assert summary.ticks_processed == 3
-    assert summary.engine_executions == 15
+    assert summary.engine_executions == 18
     for name in (
         "temporal_context",
         "promotion_context",
         "demand_context",
         "customer_behavior_context",
         "pricing_context",
+        "transaction_context",
     ):
         collection = context.state.collection(name)
         assert all(collection.contains(f"tick-{index}") for index in range(3))
@@ -128,6 +131,13 @@ def test_full_pipeline_preserves_context_history() -> None:
     assert (
         sum(
             event.event_type == "PricingContextGenerated"
+            for event in store.all_events()
+        )
+        == 3
+    )
+    assert (
+        sum(
+            event.event_type == "TransactionContextGenerated"
             for event in store.all_events()
         )
         == 3

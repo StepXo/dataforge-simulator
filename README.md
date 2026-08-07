@@ -371,7 +371,7 @@ DemandContext
 reproducibles basados en segmento, frecuencia de compra, factor de actividad,
 location preferida, canal preferido y sensibilidad a promociones. Produce
 `PurchaseIntent` y conserva como demanda no asignada cualquier unidad que no pueda
-asociarse a un cliente.
+asociarse a un cliente. Los intents del mismo tick que comparten customer, Location y canal reciben el mismo `basket_id` determinista.
 
 El engine no crea ventas, no calcula precios y no comprueba ni descuenta stock. En
 cada tick se conserva la igualdad `assigned + unassigned = demand`.
@@ -398,7 +398,7 @@ PurchaseIntents
 a partir de `Product.base_price` y las promociones activas que coinciden en target y
 canal. Si varias promociones aplican, utiliza solo la de mayor descuento; los
 empates conservan el orden del `PromotionContext`. Una promoción dirigida a una
-Location nunca afecta cotizaciones de otra sede.
+Location nunca afecta cotizaciones de otra sede. Cada `PriceQuote` conserva el `basket_id` de su intent.
 
 Todo valor monetario usa `Decimal`, precisión de centavos y `ROUND_HALF_UP`. El
 engine no crea ventas, no decide fulfillment y no modifica productos, promociones
@@ -415,6 +415,29 @@ PricingEngine
     ↓
 PriceQuote
 ```
+
+## Transaction Engine
+
+`TransactionEngine` convierte cada `PurchaseIntent` y su `PriceQuote` correspondiente
+en una `Transaction` completada o rechazada, preservando su `basket_id`. La operacion es *all-or-nothing*: si
+el stock no cubre toda la cantidad solicitada, no existe venta parcial.
+
+El engine usa un ledger local por combinacion Location x Product para evitar
+*overselling* entre intents del mismo tick, pero no modifica `InventoryItem`. Las
+transacciones rechazadas conservan los importes cotizados y
+`lost_sales_amount` acumula su valor neto potencial. Un futuro `InventoryEngine`
+aplicara al stock las transacciones completadas.
+
+```text
+PricingEngine
+    |
+PriceQuote
+    |
+TransactionEngine
+    +-- completed
+    +-- rejected
+```
+
 ## Calidad y pruebas
 
 ```bash

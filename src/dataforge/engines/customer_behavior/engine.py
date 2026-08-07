@@ -43,6 +43,30 @@ class _IntentDraft:
     requested_quantity: int
 
 
+def _build_intents(
+    drafts: list[_IntentDraft], tick_index: int, demand_tick_index: int
+) -> tuple[PurchaseIntent, ...]:
+    basket_ids: dict[tuple[str, str, PreferredChannel], str] = {}
+    intents: list[PurchaseIntent] = []
+    for index, draft in enumerate(drafts, start=1):
+        basket_key = (draft.customer_id, draft.location_id, draft.channel)
+        if basket_key not in basket_ids:
+            basket_ids[basket_key] = f"basket-{tick_index}-{len(basket_ids) + 1:06d}"
+        intents.append(
+            PurchaseIntent(
+                id=f"intent-{tick_index}-{index:06d}",
+                basket_id=basket_ids[basket_key],
+                customer_id=draft.customer_id,
+                location_id=draft.location_id,
+                product_id=draft.product_id,
+                channel=draft.channel,
+                requested_quantity=draft.requested_quantity,
+                demand_tick_index=demand_tick_index,
+            )
+        )
+    return tuple(intents)
+
+
 class CustomerBehaviorEngine:
     """Convert aggregate demand into reproducible customer purchase intents."""
 
@@ -113,24 +137,15 @@ class CustomerBehaviorEngine:
             )
             unassigned += record.requested_units - assigned
 
-        intents = tuple(
-            PurchaseIntent(
-                id=f"intent-{clock.tick_index}-{index:06d}",
-                customer_id=draft.customer_id,
-                location_id=draft.location_id,
-                product_id=draft.product_id,
-                channel=draft.channel,
-                requested_quantity=draft.requested_quantity,
-                demand_tick_index=demand.tick_index,
-            )
-            for index, draft in enumerate(drafts, start=1)
-        )
+        intent_values = _build_intents(drafts, clock.tick_index, demand.tick_index)
         behavior = CustomerBehaviorContext(
             tick_index=clock.tick_index,
             current_time=temporal.current_time,
-            intents=intents,
-            total_intents=len(intents),
-            total_requested_units=sum(intent.requested_quantity for intent in intents),
+            intents=intent_values,
+            total_intents=len(intent_values),
+            total_requested_units=sum(
+                intent.requested_quantity for intent in intent_values
+            ),
             unassigned_demand_units=unassigned,
         )
         if context.state.has_collection(CUSTOMER_BEHAVIOR_CONTEXT_COLLECTION):

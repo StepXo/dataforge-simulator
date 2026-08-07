@@ -16,7 +16,9 @@ from dataforge.customers.models import Customer, CustomerSegment, PreferredChann
 from dataforge.engines.customer_behavior.engine import (
     CustomerBehaviorEngine,
     CustomerBehaviorEngineConfig,
+    _build_intents,
     _customer_weight,
+    _IntentDraft,
     _promotion_propensity,
     _select_channel,
 )
@@ -190,6 +192,7 @@ def test_config_rejects_invalid_values(field: str, value: float) -> None:
 def test_models_validate_totals_and_are_immutable() -> None:
     intent = PurchaseIntent(
         "intent-15-000001",
+        "basket-15-000001",
         "customer-1",
         "location-a",
         "product-a",
@@ -202,13 +205,46 @@ def test_models_validate_totals_and_are_immutable() -> None:
     with pytest.raises(FrozenInstanceError):
         intent.__setattr__("requested_quantity", 3)
     with pytest.raises(ValueError, match="at least one"):
-        PurchaseIntent("x", "c", "l", "p", PreferredChannel.PHYSICAL, 0, 0)
+        PurchaseIntent("x", "b", "c", "l", "p", PreferredChannel.PHYSICAL, 0, 0)
     with pytest.raises(ValueError, match="total_intents"):
         CustomerBehaviorContext(0, NOW, (intent,), 0, 2, 0)
     with pytest.raises(ValueError, match="quantity sum"):
         CustomerBehaviorContext(0, NOW, (intent,), 1, 1, 0)
     with pytest.raises(ValueError, match="non-negative"):
         CustomerBehaviorContext(0, NOW, (), 0, 0, -1)
+
+
+def test_basket_grouping_is_deterministic_and_uses_customer_location_channel() -> None:
+    drafts = [
+        _IntentDraft(
+            "customer-a", "location-a", "product-a", PreferredChannel.MOBILE, 2
+        ),
+        _IntentDraft(
+            "customer-a", "location-a", "product-b", PreferredChannel.MOBILE, 1
+        ),
+        _IntentDraft(
+            "customer-b", "location-a", "product-a", PreferredChannel.MOBILE, 1
+        ),
+        _IntentDraft(
+            "customer-a", "location-b", "product-a", PreferredChannel.MOBILE, 1
+        ),
+        _IntentDraft(
+            "customer-a", "location-a", "product-a", PreferredChannel.PHYSICAL, 1
+        ),
+    ]
+    intents = _build_intents(drafts, tick_index=10, demand_tick_index=10)
+    assert [intent.id for intent in intents] == [
+        f"intent-10-{index:06d}" for index in range(1, 6)
+    ]
+    assert [intent.basket_id for intent in intents] == [
+        "basket-10-000001",
+        "basket-10-000001",
+        "basket-10-000002",
+        "basket-10-000003",
+        "basket-10-000004",
+    ]
+    assert intents == _build_intents(drafts, tick_index=10, demand_tick_index=10)
+    assert _build_intents(drafts, 11, 11)[0].basket_id == "basket-11-000001"
 
 
 def test_customer_weight_uses_segment_frequency_activity_and_location() -> None:
@@ -356,6 +392,7 @@ def test_assignment_conserves_units_limits_quantities_and_publishes_after_save()
     event = store.all_events()[-1]
     assert event.event_type == "CustomerBehaviorContextGenerated"
     assert event.payload["total_requested_units"] == 11
+    assert event.payload["intents"][0]["basket_id"].startswith("basket-0-")
 
 
 @pytest.mark.parametrize(

@@ -75,3 +75,8 @@
 - Pricing money always uses Decimal.
 - PricingEngine never mutates Product, Promotion, Inventory, or PurchaseIntent.
 - Store PricingContext before publishing its event.
+- TransactionEngine never mutates Inventory and uses a local ledger per tick.
+- Transactions are all-or-nothing in the MVP; never permit overselling.
+- TransactionEngine must use PriceQuote values and never recalculate pricing.
+- Rejected transactions retain their potential monetary value.
+- Store TransactionContext before publishing transaction events.

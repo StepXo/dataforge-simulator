@@ -9,6 +9,7 @@ from dataforge.customers.models import PreferredChannel
 @dataclass(frozen=True, slots=True)
 class PurchaseIntent:
     id: str
+    basket_id: str
     customer_id: str
     location_id: str
     product_id: str

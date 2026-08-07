@@ -134,6 +134,7 @@ class PricingEngine:
         net = _quantize_money(unit_effective * quantity)
         return PriceQuote(
             intent_id=intent.id,
+            basket_id=intent.basket_id,
             customer_id=intent.customer_id,
             location_id=intent.location_id,
             product_id=intent.product_id,

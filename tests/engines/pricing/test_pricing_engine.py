@@ -75,7 +75,14 @@ def intent(
     quantity: int = 2,
 ) -> PurchaseIntent:
     return PurchaseIntent(
-        identifier, "customer-a", location_id, product_id, channel, quantity, 0
+        identifier,
+        "basket-0-000001",
+        "customer-a",
+        location_id,
+        product_id,
+        channel,
+        quantity,
+        0,
     )
 
 
@@ -154,6 +161,7 @@ def test_models_are_immutable_and_validate_money() -> None:
     with pytest.raises(ValueError, match="quantity"):
         PriceQuote(
             "i",
+            "b",
             "c",
             "l",
             "p",
@@ -175,6 +183,7 @@ def test_models_are_immutable_and_validate_money() -> None:
 
 def test_no_promotion_and_empty_context() -> None:
     quote = execute().quotes[0]
+    assert quote.basket_id == "basket-0-000001"
     assert (
         quote.unit_base_price,
         quote.unit_discount_amount,
@@ -403,6 +412,7 @@ def test_event_save_before_publish_duplicate_and_seed_independence() -> None:
     assert observed == [True]
     event = store.all_events()[-1]
     assert event.payload["total_gross_amount"] == "200.00"
+    assert event.payload["quotes"][0]["basket_id"] == "basket-0-000001"
     before = store.count()
     with pytest.raises(ValueError, match="already exists"):
         engine.execute(first_context, first_clock)
