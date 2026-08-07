@@ -13,6 +13,7 @@ from dataforge.core.value_objects import DateRange, TimeRange
 from dataforge.customers.models import Customer, CustomerSegment, PreferredChannel
 from dataforge.engines.customer_behavior.engine import CustomerBehaviorEngine
 from dataforge.engines.demand.engine import DemandEngine
+from dataforge.engines.pricing.engine import PricingEngine
 from dataforge.engines.promotion.engine import PromotionEngine
 from dataforge.engines.time.engine import TimeEngine
 from dataforge.events.event_bus import EventBus
@@ -98,21 +99,35 @@ def runtime() -> tuple[SimulationContext, SimulationClock, EventStore]:
 def test_full_pipeline_preserves_context_history() -> None:
     context, clock, store = runtime()
     summary = SimulationOrchestrator(
-        [TimeEngine(), PromotionEngine(), DemandEngine(), CustomerBehaviorEngine()]
+        [
+            TimeEngine(),
+            PromotionEngine(),
+            DemandEngine(),
+            CustomerBehaviorEngine(),
+            PricingEngine(),
+        ]
     ).run(context, clock)
     assert summary.ticks_processed == 3
-    assert summary.engine_executions == 12
+    assert summary.engine_executions == 15
     for name in (
         "temporal_context",
         "promotion_context",
         "demand_context",
         "customer_behavior_context",
+        "pricing_context",
     ):
         collection = context.state.collection(name)
         assert all(collection.contains(f"tick-{index}") for index in range(3))
     assert (
         sum(
             event.event_type == "CustomerBehaviorContextGenerated"
+            for event in store.all_events()
+        )
+        == 3
+    )
+    assert (
+        sum(
+            event.event_type == "PricingContextGenerated"
             for event in store.all_events()
         )
         == 3

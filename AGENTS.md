@@ -69,3 +69,9 @@
 - No commercial activity may occur before Location.opened_at.
 - CustomerBehavior fulfillment is same-city only in the MVP.
 - PurchaseIntent.location_id is the fulfillment Location.
+- PricingEngine creates quotes, never sales, and never decides fulfillment.
+- Every PriceQuote requires an active InventoryItem; zero stock still permits quoting.
+- Location-targeted promotions must never leak to other Locations.
+- Pricing money always uses Decimal.
+- PricingEngine never mutates Product, Promotion, Inventory, or PurchaseIntent.
+- Store PricingContext before publishing its event.

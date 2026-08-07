@@ -392,6 +392,29 @@ CustomerBehaviorEngine
     ↓
 PurchaseIntents
 ```
+## Pricing Engine
+
+`PricingEngine` consume cada `PurchaseIntent` y produce exactamente un `PriceQuote`
+a partir de `Product.base_price` y las promociones activas que coinciden en target y
+canal. Si varias promociones aplican, utiliza solo la de mayor descuento; los
+empates conservan el orden del `PromotionContext`. Una promoción dirigida a una
+Location nunca afecta cotizaciones de otra sede.
+
+Todo valor monetario usa `Decimal`, precisión de centavos y `ROUND_HALF_UP`. El
+engine no crea ventas, no decide fulfillment y no modifica productos, promociones
+o inventario. Valida que Location × Product pertenezca al surtido activo, pero no
+exige stock positivo:
+
+```text
+InventoryItem inexistente → no se puede cotizar
+InventoryItem activo con stock=0 → sí se puede cotizar
+
+PurchaseIntent
+    ↓
+PricingEngine
+    ↓
+PriceQuote
+```
 ## Calidad y pruebas
 
 ```bash
