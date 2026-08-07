@@ -1,0 +1,66 @@
+simulation:
+  seed: 42
+  start_datetime: 2024-01-01T00:00:00
+  end_datetime: 2026-12-31T23:00:00
+  tick_unit: hour
+
+geography:
+  source: ../geography/colombia.yaml
+
+products:
+  source: ../products/taqueria.yaml
+
+locations:
+  min_per_region: 2
+  max_per_region: 3
+  min_capacity: 50
+  max_capacity: 250
+  min_activity_factor: 0.50
+  max_activity_factor: 1.50
+
+customers:
+  count: 1000
+  min_purchase_frequency: 0.2
+  max_purchase_frequency: 8.0
+  mobile_preference_probability: 0.45
+  inactive_probability: 0.10
+  high_frequency_probability: 0.15
+
+inventory:
+  min_initial_stock: 50
+  max_initial_stock: 250
+  min_reorder_point: 10
+  max_reorder_point: 40
+  max_stock_multiplier: 1.50
+  product_availability_probability: 0.90
+
+promotions:
+  count: 20
+  min_duration_days: 2
+  max_duration_days: 14
+  min_discount_rate: 0.05
+  max_discount_rate: 0.30
+  min_demand_lift: 0.05
+  max_demand_lift: 0.50
+  mobile_only_probability: 0.20
+  location_target_probability: 0.35
+  region_target_probability: 0.20
+  category_target_probability: 0.25
+
+demand:
+  base_demand_min: 0.10
+  base_demand_max: 3.00
+  weekend_factor: 1.20
+  mid_month_factor: 1.10
+  month_end_factor: 1.10
+  early_morning_factor: 0.20
+  morning_factor: 0.70
+  lunch_factor: 1.40
+  afternoon_factor: 0.90
+  evening_factor: 1.50
+  night_factor: 0.60
+  max_requested_units_per_item: 1000
+
+replenishment:
+  min_lead_time_ticks: 1
+  max_lead_time_ticks: 3

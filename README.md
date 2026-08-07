@@ -527,6 +527,29 @@ clock.advance()
 
 La validacion es read-only respecto al estado comercial y conserva un snapshot
 `validation_context` por tick.
+## Scenario Configuration
+
+Un scenario describe mediante YAML externo el universo y los parametros de una
+simulacion completa, pero no contiene logica de negocio ni ejecuta el motor. Puede
+referenciar una geografia y un catalogo de productos externos; sus rutas relativas
+se resuelven respecto al propio archivo del scenario, no al directorio de trabajo.
+
+```text
+Scenario YAML
+      |
+load_scenario()
+      |
+ScenarioDefinition
+```
+
+El ejemplo `configs/scenarios/taqueria-colombia.yaml` reutiliza las configuraciones
+actuales de bootstrap y engines. Un futuro `SimulationRunner` consumira este
+contrato; no forma parte de la implementacion actual.
+
+Los nombres de archivo no tienen semantica para DataForge. `taqueria-colombia.yaml`,
+`colombia.yaml` y `taqueria.yaml` son ejemplos, no convenciones del runtime. Una
+geografia o catalogo puede usar cualquier nombre y directorio: el contenido
+validado, nunca el filename o sus fragmentos de ruta, determina su significado.
 ## Calidad y pruebas
 
 ```bash

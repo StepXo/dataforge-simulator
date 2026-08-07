@@ -95,3 +95,12 @@
 - StateValidationEngine must remain the final MVP engine; validation detects and never repairs.
 - Validate invariants between outputs without duplicating prior engine algorithms or modifying business state.
 - An invalid tick must fail immediately.
+- Scenario files describe configuration, never behavior; generators and engines must not read Scenario YAML directly.
+- Resolve relative scenario paths against the scenario file itself.
+- Reuse existing configuration models and do not expose ceremonial options for components without parameters.
+- A future runtime converts ScenarioDefinition into executable objects.
+- Never infer country, business type, scenario behavior, or configuration semantics from a file name or path.
+- Geography sources may use any file name; their content must be validated against GeographyDefinition.
+- Product catalog sources may use any file name; their content must be validated against ProductCatalogDefinition.
+- Example files such as colombia.yaml, mexico.yaml, taqueria.yaml, or farmacia.yaml are fixtures/examples only and must never become runtime conventions.
+- Scenario source paths are user-provided configuration; validated file content, never the filename, is the source of truth.
