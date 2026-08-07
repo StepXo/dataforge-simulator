@@ -508,6 +508,25 @@ MetricsEngine
 La demanda no asignada representa unidades que no llegaron a un intent; lost sales
 representa el valor cotizado de transacciones rechazadas. Son metricas distintas.
 Los snapshots se conservan en `metrics_context` y no incluyen agregados historicos.
+## State Validation Engine
+
+`StateValidationEngine` es el ultimo engine del tick. No genera negocio ni repara
+estado: valida relaciones maestras y coherencia entre demand, intents, pricing,
+transactions, inventory, replenishment y metrics. Cualquier inconsistencia produce
+un `ValueError` antes de crear un contexto exitoso o publicar su evento.
+
+```text
+MetricsEngine
+    |
+StateValidationEngine
+    |
+tick valido
+    |
+clock.advance()
+```
+
+La validacion es read-only respecto al estado comercial y conserva un snapshot
+`validation_context` por tick.
 ## Calidad y pruebas
 
 ```bash

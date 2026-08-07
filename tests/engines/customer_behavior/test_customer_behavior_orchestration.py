@@ -20,11 +20,18 @@ from dataforge.engines.promotion.engine import PromotionEngine
 from dataforge.engines.replenishment.engine import ReplenishmentEngine
 from dataforge.engines.time.engine import TimeEngine
 from dataforge.engines.transaction.engine import TransactionEngine
+from dataforge.engines.validation.engine import StateValidationEngine
 from dataforge.events.event_bus import EventBus
 from dataforge.events.event_store import EventStore
-from dataforge.geography.models import Location
+from dataforge.geography.models import (
+    AdministrativeArea,
+    City,
+    Country,
+    Location,
+    Region,
+)
 from dataforge.inventory.models import InventoryItem
-from dataforge.products.models import Product
+from dataforge.products.models import Category, Product
 from dataforge.promotions.models import Promotion, PromotionChannel, PromotionTargetType
 from dataforge.simulation.orchestrator import SimulationOrchestrator
 
@@ -75,7 +82,23 @@ def runtime() -> tuple[SimulationContext, SimulationClock, EventStore]:
         date(2020, 1, 1),
         True,
     )
+    context.state.create_collection("countries").add(
+        "country-a", Country("country-a", "CO", "A")
+    )
+    context.state.create_collection("regions").add(
+        "region-a", Region("region-a", "A", "country-a")
+    )
+    context.state.create_collection("administrative_areas").add(
+        "area-a",
+        AdministrativeArea("area-a", "A", "department", "region-a", "country-a"),
+    )
+    context.state.create_collection("cities").add(
+        "city-a", City("city-a", "A", "area-a", "region-a", "country-a")
+    )
     context.state.create_collection("locations").add(item_location.id, item_location)
+    context.state.create_collection("categories").add(
+        "category-a", Category("category-a", "A")
+    )
     context.state.create_collection("products").add(item_product.id, item_product)
     context.state.create_collection("customers").add(item_customer.id, item_customer)
     context.state.create_collection("inventory").add(
@@ -113,10 +136,11 @@ def test_full_pipeline_preserves_context_history() -> None:
             InventoryEngine(),
             ReplenishmentEngine(),
             MetricsEngine(),
+            StateValidationEngine(),
         ]
     ).run(context, clock)
     assert summary.ticks_processed == 3
-    assert summary.engine_executions == 27
+    assert summary.engine_executions == 30
     for name in (
         "temporal_context",
         "promotion_context",
@@ -127,6 +151,7 @@ def test_full_pipeline_preserves_context_history() -> None:
         "inventory_context",
         "replenishment_context",
         "metrics_context",
+        "validation_context",
     ):
         collection = context.state.collection(name)
         assert all(collection.contains(f"tick-{index}") for index in range(3))
@@ -168,6 +193,13 @@ def test_full_pipeline_preserves_context_history() -> None:
     assert (
         sum(
             event.event_type == "MetricsContextGenerated"
+            for event in store.all_events()
+        )
+        == 3
+    )
+    assert (
+        sum(
+            event.event_type == "StateValidationCompleted"
             for event in store.all_events()
         )
         == 3

@@ -92,3 +92,6 @@
 - MetricsEngine is read-only with respect to business state and must not recalculate prior engine logic.
 - Lost sales and unassigned demand are different metrics; official sales amounts come from TransactionContext.
 - Official units sold must match InventoryContext, and metrics remain per-tick rather than historical aggregates.
+- StateValidationEngine must remain the final MVP engine; validation detects and never repairs.
+- Validate invariants between outputs without duplicating prior engine algorithms or modifying business state.
+- An invalid tick must fail immediately.
