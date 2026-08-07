@@ -5,11 +5,11 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from dataforge.bootstrap.collections import prepare_empty_collections
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.customers.events import CustomerCreated
 from dataforge.customers.models import Customer, CustomerSegment, PreferredChannel
 from dataforge.geography.models import City, Location, Region
-from dataforge.state.collection import StateCollection
 
 
 class CustomerGenerationConfig(BaseModel):
@@ -35,7 +35,8 @@ class CustomerGenerator:
 
     def generate(self, context: SimulationContext) -> None:
         regions, cities, locations = self._require_geography(context)
-        customers = self._prepare_collection(context)
+        prepare_empty_collections(context.state, ("customers",))
+        customers = context.state.collection("customers")
 
         region_ids = {region.id for region in regions}
         for sequence in range(1, self._config.count + 1):
@@ -81,16 +82,6 @@ class CustomerGenerator:
         ):
             raise ValueError("Geography collections contain invalid records")
         return regions, cities, locations
-
-    def _prepare_collection(
-        self, context: SimulationContext
-    ) -> StateCollection[object]:
-        if context.state.has_collection("customers"):
-            collection = context.state.collection("customers")
-            if collection.count() > 0:
-                raise ValueError("State collection must be empty: customers")
-            return collection
-        return context.state.create_collection("customers")
 
     def _preferred_location(
         self, context: SimulationContext, city: City, locations: list[Location]

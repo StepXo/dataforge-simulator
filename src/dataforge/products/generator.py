@@ -2,6 +2,7 @@
 
 from decimal import ROUND_HALF_UP, Decimal
 
+from dataforge.bootstrap.collections import prepare_empty_collections
 from dataforge.configuration.products.models import ProductCatalogDefinition
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.products.events import CategoryCreated, ProductCreated
@@ -16,7 +17,7 @@ class ProductGenerator:
         self._catalog = catalog
 
     def generate(self, context: SimulationContext) -> None:
-        self._prepare_collections(context)
+        prepare_empty_collections(context.state, COLLECTION_NAMES)
         category_ids: set[str] = set()
         categories = context.state.collection("categories")
         for category_definition in self._catalog.categories:
@@ -48,14 +49,3 @@ class ProductGenerator:
             )
             products.add(product.id, product)
             context.event_bus.publish(ProductCreated(product))
-
-    def _prepare_collections(self, context: SimulationContext) -> None:
-        for name in COLLECTION_NAMES:
-            if (
-                context.state.has_collection(name)
-                and context.state.collection(name).count() > 0
-            ):
-                raise ValueError(f"State collection must be empty: {name}")
-        for name in COLLECTION_NAMES:
-            if not context.state.has_collection(name):
-                context.state.create_collection(name)

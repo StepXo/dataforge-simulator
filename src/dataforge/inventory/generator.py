@@ -4,6 +4,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from dataforge.bootstrap.collections import prepare_empty_collections
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.geography.models import Location
 from dataforge.inventory.events import InventoryItemCreated
@@ -36,7 +37,8 @@ class InventoryBootstrapGenerator:
     def generate(self, context: SimulationContext) -> None:
         locations = self._require_locations(context)
         products = self._require_products(context)
-        inventory = self._prepare_inventory(context)
+        prepare_empty_collections(context.state, ("inventory",))
+        inventory = context.state.collection("inventory")
         capacities = [location.capacity for location in locations]
         minimum_capacity = min(capacities)
         capacity_span = max(capacities) - minimum_capacity
@@ -96,14 +98,6 @@ class InventoryBootstrapGenerator:
         if not values:
             raise ValueError(f"Required inventory collection is empty: {name}")
         return values
-
-    def _prepare_inventory(self, context: SimulationContext) -> StateCollection[object]:
-        if context.state.has_collection("inventory"):
-            inventory = context.state.collection("inventory")
-            if inventory.count() > 0:
-                raise ValueError("State collection must be empty: inventory")
-            return inventory
-        return context.state.create_collection("inventory")
 
     def _create_item(
         self,

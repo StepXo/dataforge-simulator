@@ -5,6 +5,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from dataforge.bootstrap.collections import prepare_empty_collections
 from dataforge.configuration.geography.models import GeographyDefinition
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.geography.events import (
@@ -66,24 +67,12 @@ class GeographyGenerator:
 
     def generate(self, context: SimulationContext) -> None:
         """Populate geographic state in deterministic dependency order."""
-        self._prepare_collections(context)
+        prepare_empty_collections(context.state, COLLECTION_NAMES)
         country = self._create_country(context)
         regions = self._create_regions(context, country)
         areas = self._create_administrative_areas(context, country, regions)
         cities = self._create_cities(context, country, regions, areas)
         self._create_locations(context, country, regions, areas, cities)
-
-    def _prepare_collections(self, context: SimulationContext) -> None:
-        for name in COLLECTION_NAMES:
-            if (
-                context.state.has_collection(name)
-                and context.state.collection(name).count() > 0
-            ):
-                raise ValueError(f"State collection must be empty: {name}")
-
-        for name in COLLECTION_NAMES:
-            if not context.state.has_collection(name):
-                context.state.create_collection(name)
 
     def _create_country(self, context: SimulationContext) -> Country:
         definition = self._geography.country

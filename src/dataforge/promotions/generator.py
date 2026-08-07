@@ -5,12 +5,12 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from dataforge.bootstrap.collections import prepare_empty_collections
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.geography.models import Location, Region
 from dataforge.products.models import Category, Product
 from dataforge.promotions.events import PromotionCreated
 from dataforge.promotions.models import Promotion, PromotionChannel, PromotionTargetType
-from dataforge.state.collection import StateCollection
 
 
 class PromotionGenerationConfig(BaseModel):
@@ -49,7 +49,8 @@ class PromotionBootstrapGenerator:
         products = [product for product in all_products if product.active]
         if not products:
             raise ValueError("Products collection has no active products")
-        promotions = self._prepare_promotions(context)
+        prepare_empty_collections(context.state, ("promotions",))
+        promotions = context.state.collection("promotions")
 
         for sequence in range(1, self._config.count + 1):
             start_date, end_date = self._dates(context)
@@ -96,16 +97,6 @@ class PromotionBootstrapGenerator:
         if len(values) != len(raw):
             raise ValueError(f"Promotion dependency contains invalid records: {name}")
         return values
-
-    def _prepare_promotions(
-        self, context: SimulationContext
-    ) -> StateCollection[object]:
-        if context.state.has_collection("promotions"):
-            promotions = context.state.collection("promotions")
-            if promotions.count() > 0:
-                raise ValueError("State collection must be empty: promotions")
-            return promotions
-        return context.state.create_collection("promotions")
 
     def _dates(self, context: SimulationContext) -> tuple[date, date]:
         start = context.date_range.start_date
