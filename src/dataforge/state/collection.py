@@ -13,6 +13,12 @@ class StateCollection[T]:
             raise ValueError(f"State key already exists: {key}")
         self._values[key] = value
 
+    def replace(self, key: str, value: T) -> None:
+        """Replace an existing value while preserving insertion order."""
+        if key not in self._values:
+            raise KeyError(key)
+        self._values[key] = value
+
     def get(self, key: str) -> T | None:
         """Return a value or None when its key is absent."""
         return self._values.get(key)

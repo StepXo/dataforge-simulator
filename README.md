@@ -211,6 +211,322 @@ BootstrapRunner
     -> Estado actualizado durante los ticks
 ```
 
+## Time Engine
+
+`TimeEngine` es el primer simulation engine concreto. Se ejecuta una vez por tick,
+interpreta el `SimulationClock` y crea un `TemporalContext` inmutable sin avanzar el
+reloj. Conserva un contexto por tick en la colecci?n `temporal_context` de
+`SimulationState` y publica un evento `TimeContextGenerated` despu?s de almacenarlo.
+
+```text
+SimulationClock
+    -> TimeEngine
+    -> TemporalContext
+        -> SimulationState
+        -> TimeContextGenerated
+```
+
+Los engines posteriores pueden consultar este contexto siempre que aparezcan
+despu?s de `TimeEngine` en el orden expl?cito del orquestador. Actualmente se
+interpretan ticks diarios y horarios, sin festivos ni reglas comerciales. Un
+contexto temporal no representa una venta:
+
+```text
+1 tick
+1 ejecuci?n de TimeEngine
+1 TemporalContext
+
+El mismo tick podr?a producir posteriormente:
+40 ventas
+95 detalles de venta
+95 movimientos de inventario
+```
+
+## Geography Configuration
+
+La geograf?a de referencia se carga desde YAML y el c?digo no depende de Colombia.
+El esquema valida `Country`, `Region`, `AdministrativeArea` y `City`, incluyendo sus
+relaciones. Actualmente existe un ejemplo peque?o en
+`configs/geography/colombia.yaml`; todav?a no genera locations.
+
+```python
+from pathlib import Path
+
+from dataforge.configuration.geography import load_geography
+
+geography = load_geography(Path("configs/geography/colombia.yaml"))
+```
+
+## Geography Generator
+
+`GeographyDefinition` describes reference geography. During bootstrap,
+`GeographyGenerator` converts it into `countries`, `regions`,
+`administrative_areas`, `cities`, and synthetic `locations`. It does not
+know concrete countries; location characteristics are reproducible from the seed.
+
+```text
+colombia.yaml -> load_geography() -> GeographyDefinition
+               -> GeographyGenerator -> SimulationState
+```
+
+This generator runs during bootstrap, never once per tick.
+## Product Bootstrap
+
+El catálogo proviene de YAML y `ProductGenerator` no conoce un negocio concreto.
+`configs/products/taqueria.yaml` contiene categorías y productos con precios y
+costos `Decimal`. El generator calcula `base_margin` como proporción redondeada a
+cuatro decimales y genera un `activity_factor` reproducible desde la seed. Se
+ejecuta durante bootstrap y no genera ventas ni inventario.
+
+```text
+taqueria.yaml -> load_product_catalog() -> ProductCatalogDefinition
+               -> ProductGenerator -> categories / products -> SimulationState
+```
+
+## Customer Bootstrap
+
+`CustomerGenerator` crea durante bootstrap una población inicial reproducible y no
+genera compras. Cada cliente referencia ciudades, regiones y locations existentes,
+y conserva segmento, frecuencia base mensual, canal preferido, sensibilidad a
+promociones y factor de actividad para futuros engines.
+
+```text
+GeographyGenerator -> locations -> CustomerGenerator -> customers -> SimulationState
+```
+
+`CustomerGenerator` no es `CustomerBehaviorEngine`: no ejecuta comportamiento por
+tick ni crea transacciones.
+## Inventory Bootstrap
+
+`InventoryBootstrapGenerator` crea el stock inicial antes de los ticks. Cada
+`InventoryItem` representa una combinación Product x Location y no un movimiento
+histórico. La disponibilidad y cantidades son reproducibles; el cálculo pondera la
+variación aleatoria, la capacidad de `Location` y el `activity_factor` de Product.
+El futuro `InventoryEngine` será responsable de modificar este estado.
+
+```text
+locations + products
+        ↓
+InventoryBootstrapGenerator
+        ↓
+inventory
+        ↓
+SimulationState
+```
+## Promotion Bootstrap
+
+`PromotionBootstrapGenerator` crea un calendario inicial reproducible y no aplica
+promociones. Cada `Promotion` tiene periodo, target, canal, descuento proporcional
+y demand lift potencial dentro de `SimulationState`. El futuro `PromotionEngine`
+decidirá cuáles están activas en cada tick.
+
+```text
+products + geography
+        ↓
+PromotionBootstrapGenerator
+        ↓
+promotions
+        ↓
+SimulationState
+```
+## Promotion Engine
+
+`PromotionEngine` se ejecuta por tick después de `TimeEngine`. Consume el calendario
+`promotions` y el `TemporalContext` actual, determina activación temporal inclusiva
+y guarda un `PromotionContext` histórico. No aplica descuentos, demand lift ni
+resuelve targets para transacciones concretas.
+
+```text
+TimeEngine
+    ↓
+TemporalContext
+    ↓
+PromotionEngine
+    ↓
+PromotionContext
+```
+## Demand Engine
+
+`DemandEngine` se ejecuta después de `TimeEngine` y `PromotionEngine`, y genera
+demanda potencial por cada combinación activa Location x Product definida por el
+inventario. No genera ventas ni descuenta stock: incluso stock cero conserva la
+intención de compra y `requested_units` puede superar las existencias. Las
+promociones de canal `all` pueden aumentar demanda; las específicas de canal aún
+no se aplican. Las unidades se materializan mediante stochastic rounding
+reproducible.
+
+```text
+TimeEngine
+   ↓
+PromotionEngine
+   ↓
+DemandEngine
+   ↓
+DemandContext
+```
+## Customer Behavior Engine
+
+`CustomerBehaviorEngine` se ejecuta después de `DemandEngine`. Consume el
+`DemandContext` del tick y asigna sus unidades a clientes elegibles mediante pesos
+reproducibles basados en segmento, frecuencia de compra, factor de actividad,
+location preferida, canal preferido y sensibilidad a promociones. Produce
+`PurchaseIntent` y conserva como demanda no asignada cualquier unidad que no pueda
+asociarse a un cliente. Los intents del mismo tick que comparten customer, Location y canal reciben el mismo `basket_id` determinista.
+
+El engine no crea ventas, no calcula precios y no comprueba ni descuenta stock. En
+cada tick se conserva la igualdad `assigned + unassigned = demand`.
+`PurchaseIntent.location_id` identifica la Location de fulfillment y, en este MVP,
+solo puede pertenecer a la misma ciudad y región del cliente y estar abierta.
+
+`InventoryItem` define el surtido comercial Location × Product: si no existe, el
+producto no se ofrece en esa sede. Si existe activo con `current_stock = 0`, el
+producto sí se ofrece pero está agotado; la intención de compra continúa siendo
+válida para poder medir demanda perdida posteriormente.
+
+```text
+DemandEngine
+    ↓
+DemandContext
+    ↓
+CustomerBehaviorEngine
+    ↓
+PurchaseIntents
+```
+## Pricing Engine
+
+`PricingEngine` consume cada `PurchaseIntent` y produce exactamente un `PriceQuote`
+a partir de `Product.base_price` y las promociones activas que coinciden en target y
+canal. Si varias promociones aplican, utiliza solo la de mayor descuento; los
+empates conservan el orden del `PromotionContext`. Una promoción dirigida a una
+Location nunca afecta cotizaciones de otra sede. Cada `PriceQuote` conserva el `basket_id` de su intent.
+
+Todo valor monetario usa `Decimal`, precisión de centavos y `ROUND_HALF_UP`. El
+engine no crea ventas, no decide fulfillment y no modifica productos, promociones
+o inventario. Valida que Location × Product pertenezca al surtido activo, pero no
+exige stock positivo:
+
+```text
+InventoryItem inexistente → no se puede cotizar
+InventoryItem activo con stock=0 → sí se puede cotizar
+
+PurchaseIntent
+    ↓
+PricingEngine
+    ↓
+PriceQuote
+```
+
+## Transaction Engine
+
+`TransactionEngine` convierte cada `PurchaseIntent` y su `PriceQuote` correspondiente
+en una `Transaction` completada o rechazada, preservando su `basket_id`. La operacion es *all-or-nothing*: si
+el stock no cubre toda la cantidad solicitada, no existe venta parcial.
+
+El engine usa un ledger local por combinacion Location x Product para evitar
+*overselling* entre intents del mismo tick, pero no modifica `InventoryItem`. Las
+transacciones rechazadas conservan los importes cotizados y
+`lost_sales_amount` acumula su valor neto potencial. Un futuro `InventoryEngine`
+aplicara al stock las transacciones completadas.
+
+```text
+PricingEngine
+    |
+PriceQuote
+    |
+TransactionEngine
+    +-- completed
+    +-- rejected
+```
+
+## Inventory Engine
+
+`InventoryEngine` consume el `TransactionContext` y aplica exclusivamente las
+transacciones `completed`. Cada venta reemplaza el `InventoryItem` inmutable por
+una nueva instancia con el stock descontado y produce un `InventoryMovement`.
+El stock resultante permanece en `SimulationState` y es visible en ticks posteriores.
+
+Al finalizar el tick genera senales para items modificados que quedan en o debajo
+del reorder point y para los que llegan a stock cero. Las senales no reponen stock.
+El engine valida todas las cantidades acumuladas antes de mutar y nunca decide si
+una venta debe completarse:
+
+```text
+TransactionEngine decides
+        |
+completed Transactions
+        |
+InventoryEngine applies
+        |
+Inventory state updated
+```
+
+El contexto se guarda antes de publicar eventos. El estado en memoria no ofrece
+rollback general si ocurre un fallo inesperado al guardar despues de los reemplazos.
+## Replenishment Engine
+
+`ReplenishmentEngine` consume los `ReorderSignal` del tick y programa recepciones
+futuras con un lead time reproducible medido en ticks. Conserva como maximo una
+reposicion pending por InventoryItem y completa vencimientos antes de procesar
+nuevas senales. Al recibir stock reemplaza el `InventoryItem` inmutable hasta
+`max_stock` sin superarlo y publica un movimiento de tipo `replenishment`.
+
+```text
+InventoryEngine
+    |
+ReorderSignal
+    |
+ReplenishmentEngine
+    |
+PendingReplenishment
+    |
+future tick -> stock replenished
+```
+
+No existen proveedores, ordenes de compra ni reposicion instantanea: mientras se
+espera el due tick, el producto puede permanecer agotado.
+## Metrics Engine
+
+`MetricsEngine` se ejecuta al final del flujo comercial y crea un snapshot read-only
+por tick. Resume demanda, intents, cotizaciones, transacciones completadas y
+rechazadas, movimientos de inventario y reposiciones sin recalcular ni modificar
+el estado de negocio.
+
+```text
+Demand
+  |
+Intents
+  |
+Transactions
+  |
+Inventory
+  |
+Replenishment
+  |
+MetricsEngine
+```
+
+La demanda no asignada representa unidades que no llegaron a un intent; lost sales
+representa el valor cotizado de transacciones rechazadas. Son metricas distintas.
+Los snapshots se conservan en `metrics_context` y no incluyen agregados historicos.
+## State Validation Engine
+
+`StateValidationEngine` es el ultimo engine del tick. No genera negocio ni repara
+estado: valida relaciones maestras y coherencia entre demand, intents, pricing,
+transactions, inventory, replenishment y metrics. Cualquier inconsistencia produce
+un `ValueError` antes de crear un contexto exitoso o publicar su evento.
+
+```text
+MetricsEngine
+    |
+StateValidationEngine
+    |
+tick valido
+    |
+clock.advance()
+```
+
+La validacion es read-only respecto al estado comercial y conserva un snapshot
+`validation_context` por tick.
 ## Calidad y pruebas
 
 ```bash

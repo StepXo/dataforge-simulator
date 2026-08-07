@@ -1,5 +1,7 @@
 """Tests for isolated deterministic random generation."""
 
+import pytest
+
 from dataforge.core.random_engine import RandomEngine
 
 
@@ -19,3 +21,23 @@ def test_uniform_values_respect_requested_range() -> None:
     values = generate_sequence(RandomEngine(42))
 
     assert all(0.50 <= value <= 1.50 for value in values)
+
+
+def test_weighted_choice_is_reproducible_and_validated() -> None:
+    first = RandomEngine(42)
+    second = RandomEngine(42)
+    values = ("a", "b", "c")
+    weights = (1.0, 2.0, 3.0)
+    assert [first.weighted_choice(values, weights) for _ in range(5)] == [
+        second.weighted_choice(values, weights) for _ in range(5)
+    ]
+
+
+def test_weighted_choice_rejects_invalid_weights() -> None:
+    engine = RandomEngine(42)
+    with pytest.raises(ValueError, match="equal length"):
+        engine.weighted_choice(("a",), ())
+    with pytest.raises(ValueError, match="non-negative"):
+        engine.weighted_choice(("a",), (-1.0,))
+    with pytest.raises(ValueError, match="positive"):
+        engine.weighted_choice(("a", "b"), (0.0, 0.0))

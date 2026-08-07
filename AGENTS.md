@@ -21,3 +21,77 @@
 - All shared execution state belongs in `SimulationState`; never use global state or singletons.
 - `SimulationState` is not a database and does not replace persistence.
 - `BootstrapRunner` preserves generator order; do not add rollback, priorities, dependencies, or parallelism without a feature that justifies them.
+- `TimeEngine` never advances the clock; only the orchestrator may do so.
+- Run `TimeEngine` before engines that depend on temporal context.
+- Engines share results through `SimulationState`; temporal context uses key `tick-{tick_index}`.
+- Day names must not depend on the system locale, and ticks do not limit generated actions.
+- Concrete engines must not know FastAPI, the CLI, or persistence.
+- Never hardcode countries, regions, or cities inside generators; reference geography comes from external configuration.
+- Geography configuration must not contain location business rules.
+- Do not add configuration formats without an explicit feature.
+- GeographyGenerator must never hardcode countries, regions, or cities; reference data comes from GeographyDefinition.
+- Only synthetic Location characteristics use RandomEngine.
+- GeographyGenerator is bootstrap logic and must never run per tick.
+- Store each entity before publishing its creation event.
+- ProductGenerator must never hardcode catalogs; concrete catalogs belong in configuration.
+- Represent money with Decimal, never float.
+- ProductGenerator is bootstrap logic, not a per-tick engine.
+- Store Product before publishing ProductCreated.
+- Do not introduce dynamic pricing into bootstrap.
+- CustomerGenerator is bootstrap and never generates transactions.
+- A future CustomerBehaviorEngine owns per-tick customer behavior.
+- Customers must reference existing geography.
+- Do not add personal data without a feature that requires it.
+- All customer randomness uses RandomEngine.
+- Store Customer before publishing CustomerCreated.
+- InventoryBootstrapGenerator only creates initial state; never generate movements during bootstrap.
+- All dynamic stock changes belong to a future InventoryEngine.
+- Inventory requires Geography and Product bootstrap first.
+- All inventory randomness uses RandomEngine.
+- Store InventoryItem before publishing InventoryItemCreated.
+- PromotionBootstrapGenerator only creates the calendar; never apply discounts during bootstrap.
+- A future PromotionEngine decides activation per tick.
+- A future DemandEngine consumes demand_lift.
+- All promotion randomness uses RandomEngine.
+- Store Promotion before publishing PromotionCreated.
+- PromotionEngine never advances the clock and must run after TimeEngine.
+- PromotionEngine only determines temporal activation; never apply prices or demand lift there.
+- Preserve PromotionContext history by tick and store before publishing.
+- DemandEngine never generates sales or reduces inventory; zero stock does not imply zero demand.
+- All demand randomness uses RandomEngine and inventory iteration order must remain stable.
+- DemandEngine requires TimeEngine followed by PromotionEngine and stores before publishing.
+- CustomerBehaviorEngine generates purchase intents, never sales, and never mutates Customer or inventory.
+- Customer behavior must preserve assigned units plus unassigned units equal to demand.
+- All customer behavior randomness uses RandomEngine and stable iteration order.
+- Store CustomerBehaviorContext before publishing its event.
+- Never assume a global Product is offered at every Location; InventoryItem defines the Location × Product assortment.
+- Zero stock means offered but out of stock, not absent from the assortment.
+- No commercial activity may occur before Location.opened_at.
+- CustomerBehavior fulfillment is same-city only in the MVP.
+- PurchaseIntent.location_id is the fulfillment Location.
+- PricingEngine creates quotes, never sales, and never decides fulfillment.
+- Every PriceQuote requires an active InventoryItem; zero stock still permits quoting.
+- Location-targeted promotions must never leak to other Locations.
+- Pricing money always uses Decimal.
+- PricingEngine never mutates Product, Promotion, Inventory, or PurchaseIntent.
+- Store PricingContext before publishing its event.
+- TransactionEngine never mutates Inventory and uses a local ledger per tick.
+- Transactions are all-or-nothing in the MVP; never permit overselling.
+- TransactionEngine must use PriceQuote values and never recalculate pricing.
+- Rejected transactions retain their potential monetary value.
+- Store TransactionContext before publishing transaction events.
+- InventoryEngine is the only current engine that applies stock exits; never allow current_stock below zero.
+- Validate every completed transaction and accumulated quantity before mutating inventory.
+- Rejected transactions never change Inventory, and ReorderSignal never implies replenishment.
+- InventoryItem remains immutable and must be updated through explicit replacement.
+- Check duplicate InventoryEngine execution before modifying stock.
+- Never replenish immediately when lead time is at least one tick.
+- Keep at most one pending replenishment per InventoryItem and never exceed max_stock.
+- Complete due replenishments before scheduling new ones; ReplenishmentEngine never creates sales.
+- All replenishment randomness must use RandomEngine.
+- MetricsEngine is read-only with respect to business state and must not recalculate prior engine logic.
+- Lost sales and unassigned demand are different metrics; official sales amounts come from TransactionContext.
+- Official units sold must match InventoryContext, and metrics remain per-tick rather than historical aggregates.
+- StateValidationEngine must remain the final MVP engine; validation detects and never repairs.
+- Validate invariants between outputs without duplicating prior engine algorithms or modifying business state.
+- An invalid tick must fail immediately.
