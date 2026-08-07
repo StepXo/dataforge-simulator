@@ -56,3 +56,12 @@ def test_simulate_resolves_scenario_name_from_default_directory(
     assert result.exit_code == 0
     assert "Scenario: named.yaml" in result.output
     assert "Run totals:" in result.output
+
+
+def test_simulate_smoke_scenario_by_name() -> None:
+    result = runner.invoke(app, ["simulate", "smoke-test"])
+
+    assert result.exit_code == 0
+    assert "Simulation completed" in result.output
+    assert "Scenario: smoke-test.yaml" in result.output
+    assert "Ticks processed: 24" in result.output

@@ -56,3 +56,16 @@ def test_simulation_verify_invalid_scenario_returns_422(tmp_path: Path) -> None:
 
     assert response.status_code == 422
     assert "detail" in response.json()
+
+
+def test_simulation_verify_smoke_scenario() -> None:
+    response = client.post(
+        "/simulation/verify",
+        json={"scenario_path": "configs/scenarios/smoke-test.yaml"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["validation_passed"] is True
+    assert body["ticks_processed"] == 24

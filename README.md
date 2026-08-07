@@ -622,3 +622,18 @@ docker run --rm -p 8000:8000 dataforge-simulator
 Esta versi?n solo genera entidades gen?ricas en memoria. No incluye dominios de
 negocio, persistencia, bases de datos, archivos de configuraci?n o exportaci?n,
 autenticaci?n, procesamiento as?ncrono, interfaces web ni despliegue.
+## Smoke and temporal regression tests
+
+`configs/scenarios/smoke-test.yaml` is a small technical fixture that exercises the
+complete bootstrap and ten-engine runtime; it does not represent a real business.
+Use it for routine smoke validation instead of long-running business scenarios.
+
+```bash
+uv run pytest -m "not slow" tests/runtime/test_simulation_regression.py tests/test_simulate_cli.py tests/api/test_runtime_verification.py
+uv run pytest -m slow tests/runtime/test_simulation_regression.py
+uv run pytest
+```
+
+The fast suite covers day and month horizons with hourly and daily ticks. The slow
+suite owns the complete temporal matrix, including six-month hourly simulations.
+The project does not install `pytest-xdist`, so these tests run with one worker.

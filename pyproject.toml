@@ -33,6 +33,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+markers = [
+    "slow: long-running temporal regression matrix",
+]
 
 [tool.ruff]
 target-version = "py312"
