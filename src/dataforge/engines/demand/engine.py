@@ -8,10 +8,12 @@ from pydantic import BaseModel, Field, model_validator
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.simulation_state import require_tick_context
 from dataforge.core.tick import TickUnit
 from dataforge.engines.demand.events import DemandContextGenerated
 from dataforge.engines.demand.models import DemandContext, DemandRecord
-from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
+from dataforge.engines.promotion.matching import promotion_matches_target
+from dataforge.engines.promotion.models import PromotionContext
 from dataforge.engines.time.models import (
     TemporalContext,
     TimeOfDay,
@@ -20,7 +22,7 @@ from dataforge.engines.time.models import (
 from dataforge.generators.geography.models import Location
 from dataforge.generators.inventory.models import InventoryItem
 from dataforge.generators.products.models import Product
-from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.promotions.models import PromotionChannel
 
 DEMAND_CONTEXT_COLLECTION = "demand_context"
 
@@ -69,11 +71,19 @@ class DemandEngine:
             for product in self._typed_collection(context, "products", Product)
         }
         inventory = self._typed_collection(context, "inventory", InventoryItem)
-        temporal = self._tick_context(
-            context, "temporal_context", clock.tick_index, TemporalContext
+        temporal = require_tick_context(
+            context.state,
+            "temporal_context",
+            clock.tick_index,
+            TemporalContext,
+            owner="demand",
         )
-        promotion = self._tick_context(
-            context, "promotion_context", clock.tick_index, PromotionContext
+        promotion = require_tick_context(
+            context.state,
+            "promotion_context",
+            clock.tick_index,
+            PromotionContext,
+            owner="demand",
         )
         temporal_factor = _temporal_factor(temporal, self._config)
         demands: list[DemandRecord] = []
@@ -143,24 +153,6 @@ class DemandEngine:
         if len(typed) != len(values):
             raise ValueError(f"Demand dependency contains invalid records: {name}")
         return typed
-
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        collection_name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        if not context.state.has_collection(collection_name):
-            raise ValueError(
-                f"Required demand collection is missing: {collection_name}"
-            )
-        value = context.state.collection(collection_name).get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(
-                f"{collection_name} context is missing for tick: {tick_index}"
-            )
-        return value
 
 
 def _expected_demand(
@@ -235,27 +227,11 @@ def _promotion_factor(
 ) -> float:
     factor = 1.0
     for promotion in promotion_context.active_promotions:
-        if promotion.channel is PromotionChannel.ALL and _promotion_applies(
+        if promotion.channel is PromotionChannel.ALL and promotion_matches_target(
             promotion, location, product
         ):
             factor *= 1 + promotion.demand_lift
     return factor
-
-
-def _promotion_applies(
-    promotion: ActivePromotion,
-    location: Location,
-    product: Product,
-) -> bool:
-    if promotion.target_type is PromotionTargetType.GLOBAL:
-        return True
-    target_values = {
-        PromotionTargetType.REGION: location.region_id,
-        PromotionTargetType.LOCATION: location.id,
-        PromotionTargetType.CATEGORY: product.category_id,
-        PromotionTargetType.PRODUCT: product.id,
-    }
-    return target_values[promotion.target_type] in promotion.target_ids
 
 
 def _stochastic_round(expected_demand: float, random_engine: RandomEngine) -> int:

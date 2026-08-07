@@ -7,13 +7,16 @@ from pydantic import BaseModel, Field
 from dataforge.core.random_engine import RandomEngine
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.simulation_state import require_tick_context
+from dataforge.core.value_objects import build_tick_sequence_id
 from dataforge.engines.customer_behavior.events import CustomerBehaviorContextGenerated
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
 )
 from dataforge.engines.demand.models import DemandContext, DemandRecord
-from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
+from dataforge.engines.promotion.matching import promotion_matches_target
+from dataforge.engines.promotion.models import PromotionContext
 from dataforge.engines.time.models import TemporalContext
 from dataforge.generators.customers.models import (
     Customer,
@@ -21,9 +24,10 @@ from dataforge.generators.customers.models import (
     PreferredChannel,
 )
 from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.assortment import index_active_assortment
 from dataforge.generators.inventory.models import InventoryItem
 from dataforge.generators.products.models import Product
-from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.promotions.models import PromotionChannel
 
 CUSTOMER_BEHAVIOR_CONTEXT_COLLECTION = "customer_behavior_context"
 
@@ -55,10 +59,12 @@ def _build_intents(
     for index, draft in enumerate(drafts, start=1):
         basket_key = (draft.customer_id, draft.location_id, draft.channel)
         if basket_key not in basket_ids:
-            basket_ids[basket_key] = f"basket-{tick_index}-{len(basket_ids) + 1:06d}"
+            basket_ids[basket_key] = build_tick_sequence_id(
+                "basket", tick_index, len(basket_ids) + 1
+            )
         intents.append(
             PurchaseIntent(
-                id=f"intent-{tick_index}-{index:06d}",
+                id=build_tick_sequence_id("intent", tick_index, index),
                 basket_id=basket_ids[basket_key],
                 customer_id=draft.customer_id,
                 location_id=draft.location_id,
@@ -88,25 +94,27 @@ class CustomerBehaviorEngine:
             for product in self._typed_collection(context, "products", Product)
         }
         inventory = self._typed_collection(context, "inventory", InventoryItem)
-        assortment: dict[tuple[str, str], InventoryItem] = {}
-        for item in inventory:
-            if not item.active:
-                continue
-            key = (item.location_id, item.product_id)
-            if key in assortment:
-                raise ValueError(
-                    "Multiple active InventoryItems exist for commercial combination: "
-                    f"{item.location_id}/{item.product_id}"
-                )
-            assortment[key] = item
-        temporal = self._tick_context(
-            context, "temporal_context", clock.tick_index, TemporalContext
+        assortment = index_active_assortment(inventory)
+        temporal = require_tick_context(
+            context.state,
+            "temporal_context",
+            clock.tick_index,
+            TemporalContext,
+            owner="customer behavior",
         )
-        promotions = self._tick_context(
-            context, "promotion_context", clock.tick_index, PromotionContext
+        promotions = require_tick_context(
+            context.state,
+            "promotion_context",
+            clock.tick_index,
+            PromotionContext,
+            owner="customer behavior",
         )
-        demand = self._tick_context(
-            context, "demand_context", clock.tick_index, DemandContext
+        demand = require_tick_context(
+            context.state,
+            "demand_context",
+            clock.tick_index,
+            DemandContext,
+            owner="customer behavior",
         )
 
         drafts: list[_IntentDraft] = []
@@ -225,22 +233,6 @@ class CustomerBehaviorEngine:
             )
         return typed
 
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        if not context.state.has_collection(name):
-            raise ValueError(
-                f"Required customer behavior collection is missing: {name}"
-            )
-        value = context.state.collection(name).get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(f"{name} context is missing for tick: {tick_index}")
-        return value
-
 
 def _is_eligible(
     customer: Customer, location: Location, temporal: TemporalContext
@@ -330,25 +322,11 @@ def _promotion_propensity(
     for promotion in promotions.active_promotions:
         if promotion.channel not in (PromotionChannel.ALL, channel):
             continue
-        if _promotion_applies(promotion, location, product):
+        if promotion_matches_target(promotion, location, product):
             factor *= 1 + (
                 customer.promotion_sensitivity * config.promotion_sensitivity_weight
             )
     return factor
-
-
-def _promotion_applies(
-    promotion: ActivePromotion, location: Location, product: Product
-) -> bool:
-    if promotion.target_type is PromotionTargetType.GLOBAL:
-        return True
-    target = {
-        PromotionTargetType.REGION: location.region_id,
-        PromotionTargetType.LOCATION: location.id,
-        PromotionTargetType.CATEGORY: product.category_id,
-        PromotionTargetType.PRODUCT: product.id,
-    }[promotion.target_type]
-    return target in promotion.target_ids
 
 
 def _append_or_consolidate(

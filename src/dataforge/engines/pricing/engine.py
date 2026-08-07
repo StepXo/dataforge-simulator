@@ -4,6 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.simulation_state import require_tick_context
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
@@ -14,12 +15,14 @@ from dataforge.engines.pricing.models import (
     PriceQuote,
     PricingContext,
 )
+from dataforge.engines.promotion.matching import promotion_matches_target
 from dataforge.engines.promotion.models import ActivePromotion, PromotionContext
 from dataforge.engines.time.models import TemporalContext
 from dataforge.generators.geography.models import Location
+from dataforge.generators.inventory.assortment import index_active_assortment
 from dataforge.generators.inventory.models import InventoryItem
 from dataforge.generators.products.models import Product
-from dataforge.generators.promotions.models import PromotionChannel, PromotionTargetType
+from dataforge.generators.promotions.models import PromotionChannel
 
 MONEY_QUANT = Decimal("0.01")
 PRICING_CONTEXT_COLLECTION = "pricing_context"
@@ -37,20 +40,29 @@ class PricingEngine:
             location.id: location
             for location in self._typed_collection(context, "locations", Location)
         }
-        assortment = self._active_assortment(
+        assortment = index_active_assortment(
             self._typed_collection(context, "inventory", InventoryItem)
         )
-        temporal = self._tick_context(
-            context, "temporal_context", clock.tick_index, TemporalContext
+        temporal = require_tick_context(
+            context.state,
+            "temporal_context",
+            clock.tick_index,
+            TemporalContext,
+            owner="pricing",
         )
-        promotions = self._tick_context(
-            context, "promotion_context", clock.tick_index, PromotionContext
+        promotions = require_tick_context(
+            context.state,
+            "promotion_context",
+            clock.tick_index,
+            PromotionContext,
+            owner="pricing",
         )
-        behavior = self._tick_context(
-            context,
+        behavior = require_tick_context(
+            context.state,
             "customer_behavior_context",
             clock.tick_index,
             CustomerBehaviorContext,
+            owner="pricing",
         )
 
         quotes = tuple(
@@ -151,22 +163,6 @@ class PricingEngine:
             tick_index=temporal.tick_index,
         )
 
-    def _active_assortment(
-        self, inventory: tuple[InventoryItem, ...]
-    ) -> dict[tuple[str, str], InventoryItem]:
-        assortment: dict[tuple[str, str], InventoryItem] = {}
-        for item in inventory:
-            if not item.active:
-                continue
-            key = (item.location_id, item.product_id)
-            if key in assortment:
-                raise ValueError(
-                    "Multiple active InventoryItems exist for commercial combination: "
-                    f"{item.location_id}/{item.product_id}"
-                )
-            assortment[key] = item
-        return assortment
-
     def _typed_collection[T](
         self, context: SimulationContext, name: str, expected_type: type[T]
     ) -> tuple[T, ...]:
@@ -179,20 +175,6 @@ class PricingEngine:
         if len(typed) != len(values):
             raise ValueError(f"Pricing dependency contains invalid records: {name}")
         return typed
-
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        if not context.state.has_collection(name):
-            raise ValueError(f"Required pricing collection is missing: {name}")
-        value = context.state.collection(name).get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(f"{name} context is missing for tick: {tick_index}")
-        return value
 
 
 def _quantize_money(value: Decimal) -> Decimal:
@@ -207,7 +189,7 @@ def _best_promotion(
 ) -> ActivePromotion | None:
     selected: ActivePromotion | None = None
     for promotion in context.active_promotions:
-        if not _channel_applies(promotion, intent) or not _target_applies(
+        if not _channel_applies(promotion, intent) or not promotion_matches_target(
             promotion, location, product
         ):
             continue
@@ -224,17 +206,3 @@ def _channel_applies(promotion: ActivePromotion, intent: PurchaseIntent) -> bool
     return promotion.channel is PromotionChannel.ALL or (
         promotion.channel.value == intent.channel.value
     )
-
-
-def _target_applies(
-    promotion: ActivePromotion, location: Location, product: Product
-) -> bool:
-    if promotion.target_type is PromotionTargetType.GLOBAL:
-        return True
-    target = {
-        PromotionTargetType.REGION: location.region_id,
-        PromotionTargetType.LOCATION: location.id,
-        PromotionTargetType.CATEGORY: product.category_id,
-        PromotionTargetType.PRODUCT: product.id,
-    }[promotion.target_type]
-    return target in promotion.target_ids

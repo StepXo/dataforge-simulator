@@ -5,6 +5,11 @@ from datetime import date, datetime
 from uuid import UUID, uuid4
 
 
+def build_tick_sequence_id(prefix: str, tick_index: int, sequence: int) -> str:
+    """Build the deterministic identifier format shared by tick outputs."""
+    return f"{prefix}-{tick_index}-{sequence:06d}"
+
+
 @dataclass(frozen=True, slots=True)
 class Identifier:
     """Represent an identifier backed by a UUID."""

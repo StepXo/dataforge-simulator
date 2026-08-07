@@ -2,6 +2,8 @@
 
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
+from dataforge.core.state.simulation_state import require_tick_context
+from dataforge.core.value_objects import build_tick_sequence_id
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
@@ -48,17 +50,26 @@ class TransactionEngine:
             for item in self._typed_collection(context, "products", Product)
         }
         inventory = self._typed_collection(context, "inventory", InventoryItem)
-        temporal = self._tick_context(
-            context, "temporal_context", clock.tick_index, TemporalContext
+        temporal = require_tick_context(
+            context.state,
+            "temporal_context",
+            clock.tick_index,
+            TemporalContext,
+            owner="transaction",
         )
-        behavior = self._tick_context(
-            context,
+        behavior = require_tick_context(
+            context.state,
             "customer_behavior_context",
             clock.tick_index,
             CustomerBehaviorContext,
+            owner="transaction",
         )
-        pricing = self._tick_context(
-            context, "pricing_context", clock.tick_index, PricingContext
+        pricing = require_tick_context(
+            context.state,
+            "pricing_context",
+            clock.tick_index,
+            PricingContext,
+            owner="transaction",
         )
         quotes = self._quotes_by_intent(pricing.quotes)
         if len(quotes) != len(behavior.intents):
@@ -115,7 +126,9 @@ class TransactionEngine:
                 available_stock[key] -= intent.requested_quantity
             basket_lines.setdefault(intent.basket_id, []).append(
                 TransactionLine(
-                    id=f"transaction-line-{clock.tick_index}-{line_sequence:06d}",
+                    id=build_tick_sequence_id(
+                        "transaction-line", clock.tick_index, line_sequence
+                    ),
                     intent_id=intent.id,
                     quote_intent_id=quote.intent_id,
                     product_id=intent.product_id,
@@ -184,7 +197,7 @@ class TransactionEngine:
             else TransactionStatus.PARTIALLY_COMPLETED
         )
         return Transaction(
-            id=f"transaction-{tick}-{sequence:06d}",
+            id=build_tick_sequence_id("transaction", tick, sequence),
             basket_id=basket_id,
             customer_id=intent.customer_id,
             location_id=intent.location_id,
@@ -293,17 +306,3 @@ class TransactionEngine:
         if len(typed) != len(values):
             raise ValueError(f"Transaction dependency contains invalid records: {name}")
         return typed
-
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        if not context.state.has_collection(name):
-            raise ValueError(f"Required transaction collection is missing: {name}")
-        value = context.state.collection(name).get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(f"{name} context is missing for tick: {tick_index}")
-        return value

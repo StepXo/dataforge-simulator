@@ -42,3 +42,20 @@ class SimulationState:
     def total_records(self) -> int:
         """Return the total number of records across all collections."""
         return sum(collection.count() for collection in self._collections.values())
+
+
+def require_tick_context[T](
+    state: SimulationState,
+    collection_name: str,
+    tick_index: int,
+    expected_type: type[T],
+    *,
+    owner: str,
+) -> T:
+    """Return a typed context for one tick from a required collection."""
+    if not state.has_collection(collection_name):
+        raise ValueError(f"Required {owner} collection is missing: {collection_name}")
+    value = state.collection(collection_name).get(f"tick-{tick_index}")
+    if not isinstance(value, expected_type):
+        raise ValueError(f"{collection_name} context is missing for tick: {tick_index}")
+    return value

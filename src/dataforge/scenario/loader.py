@@ -2,18 +2,14 @@
 
 from pathlib import Path
 
-import yaml
-
+from dataforge.config.loader import load_yaml
 from dataforge.scenario.models import ScenarioDefinition
 
 
 def load_scenario(path: Path) -> ScenarioDefinition:
     """Load a scenario and resolve its source paths relative to the YAML file."""
     scenario_path = path.resolve()
-    with scenario_path.open(encoding="utf-8") as file:
-        content = yaml.safe_load(file)
-
-    scenario = ScenarioDefinition.model_validate(content)
+    scenario = ScenarioDefinition.model_validate(load_yaml(scenario_path))
     base_directory = scenario_path.parent
     geography_source = _resolve_source(base_directory, scenario.geography.source)
     product_source = _resolve_source(base_directory, scenario.products.source)

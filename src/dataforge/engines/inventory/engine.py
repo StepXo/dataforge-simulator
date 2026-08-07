@@ -5,6 +5,8 @@ from dataclasses import replace as replace_dataclass
 from dataforge.core.simulation_clock import SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.state.collection import StateCollection
+from dataforge.core.state.simulation_state import require_tick_context
+from dataforge.core.value_objects import build_tick_sequence_id
 from dataforge.engines.inventory.events import (
     InventoryContextGenerated,
     InventoryMovementCreated,
@@ -37,11 +39,19 @@ class InventoryEngine:
         context_key = f"tick-{clock.tick_index}"
         output = self._prepare_output_collection(context, context_key)
         inventory = self._inventory_collection(context)
-        temporal = self._tick_context(
-            context, "temporal_context", clock.tick_index, TemporalContext
+        temporal = require_tick_context(
+            context.state,
+            "temporal_context",
+            clock.tick_index,
+            TemporalContext,
+            owner="inventory",
         )
-        transactions = self._tick_context(
-            context, "transaction_context", clock.tick_index, TransactionContext
+        transactions = require_tick_context(
+            context.state,
+            "transaction_context",
+            clock.tick_index,
+            TransactionContext,
+            owner="inventory",
         )
         completed = tuple(
             (transaction, line)
@@ -66,7 +76,9 @@ class InventoryEngine:
             changed[key] = updated
             movements.append(
                 InventoryMovement(
-                    id=(f"inventory-movement-{clock.tick_index}-{sequence:06d}"),
+                    id=build_tick_sequence_id(
+                        "inventory-movement", clock.tick_index, sequence
+                    ),
                     inventory_id=item.id,
                     location_id=item.location_id,
                     product_id=item.product_id,
@@ -189,17 +201,3 @@ class InventoryEngine:
                     "Completed Transactions exceed available stock for: "
                     f"{transaction.location_id}/{line.product_id}"
                 )
-
-    def _tick_context[T](
-        self,
-        context: SimulationContext,
-        name: str,
-        tick_index: int,
-        expected_type: type[T],
-    ) -> T:
-        if not context.state.has_collection(name):
-            raise ValueError(f"Required inventory collection is missing: {name}")
-        value = context.state.collection(name).get(f"tick-{tick_index}")
-        if not isinstance(value, expected_type):
-            raise ValueError(f"{name} context is missing for tick: {tick_index}")
-        return value
