@@ -54,3 +54,9 @@
 - A future DemandEngine consumes demand_lift.
 - All promotion randomness uses RandomEngine.
 - Store Promotion before publishing PromotionCreated.
+- PromotionEngine never advances the clock and must run after TimeEngine.
+- PromotionEngine only determines temporal activation; never apply prices or demand lift there.
+- Preserve PromotionContext history by tick and store before publishing.
+- DemandEngine never generates sales or reduces inventory; zero stock does not imply zero demand.
+- All demand randomness uses RandomEngine and inventory iteration order must remain stable.
+- DemandEngine requires TimeEngine followed by PromotionEngine and stores before publishing.

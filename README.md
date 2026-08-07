@@ -329,6 +329,41 @@ promotions
         ↓
 SimulationState
 ```
+## Promotion Engine
+
+`PromotionEngine` se ejecuta por tick después de `TimeEngine`. Consume el calendario
+`promotions` y el `TemporalContext` actual, determina activación temporal inclusiva
+y guarda un `PromotionContext` histórico. No aplica descuentos, demand lift ni
+resuelve targets para transacciones concretas.
+
+```text
+TimeEngine
+    ↓
+TemporalContext
+    ↓
+PromotionEngine
+    ↓
+PromotionContext
+```
+## Demand Engine
+
+`DemandEngine` se ejecuta después de `TimeEngine` y `PromotionEngine`, y genera
+demanda potencial por cada combinación activa Location x Product definida por el
+inventario. No genera ventas ni descuenta stock: incluso stock cero conserva la
+intención de compra y `requested_units` puede superar las existencias. Las
+promociones de canal `all` pueden aumentar demanda; las específicas de canal aún
+no se aplican. Las unidades se materializan mediante stochastic rounding
+reproducible.
+
+```text
+TimeEngine
+   ↓
+PromotionEngine
+   ↓
+DemandEngine
+   ↓
+DemandContext
+```
 ## Calidad y pruebas
 
 ```bash
