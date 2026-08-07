@@ -166,28 +166,30 @@ un `TimeRange` inclusivo y una granularidad configurable sin superar el instante
 final.
 
 `SimulationEngine` es un protocolo estructural con un ?nico m?todo `execute`, que
-recibe el `SimulationContext` compartido y el `SimulationClock`. Todos los motores
-concretos compartir?n este contrato, pero esta versi?n todav?a no implementa ning?n
-motor ni orquestador.
+recibe el `SimulationContext` compartido y el `SimulationClock`. Los diez engines del MVP comparten este contrato y el `SimulationOrchestrator`
+los ejecuta en orden explicito para cada tick.
 
 ## Simulation Runtime
 
-Un tick es una unidad de avance temporal, no una acci?n ni una transacci?n.
-`TickUnit.DAY` avanza un d?a y `TickUnit.HOUR` avanza una hora. Dentro de un mismo
-tick, un engine puede producir cero, una o muchas acciones.
-
-`SimulationClock` conserva el instante y el ?ndice actuales. El
-`SimulationOrchestrator` ejecuta todos los engines una vez por tick, preservando su
-orden, y solo entonces avanza el reloj. Por ejemplo:
+`ScenarioDefinition` describe la configuracion y `SimulationRunner` ensambla un
+runtime nuevo para cada llamada a `run()`. El `BootstrapRunner` crea el universo
+inicial, el `SimulationOrchestrator` ejecuta los diez engines por tick y el
+`SimulationResult` conserva los summaries reales junto con el estado final.
 
 ```text
-3 ticks x 2 engines = 6 engine executions
+Scenario YAML
+      |
+ScenarioDefinition
+      |
+SimulationRunner
+      +-- BootstrapRunner
+      +-- SimulationOrchestrator
+                  |
+          SimulationResult
 ```
 
-Las seis ejecuciones pueden generar cualquier cantidad de acciones internas. Esta
-versi?n define y prueba el ciclo de ejecuci?n, pero todav?a no contiene engines
-concretos ni integraci?n con la API o la CLI.
-
+El pipeline es explicito y completamente en memoria. La CLI `dataforge simulate`
+esta disponible, sin persistencia ni exportacion de resultados.
 ## Simulation State and Bootstrap
 
 `SimulationState` representa el estado compartido que vive exclusivamente en
@@ -550,6 +552,30 @@ Los nombres de archivo no tienen semantica para DataForge. `taqueria-colombia.ya
 `colombia.yaml` y `taqueria.yaml` son ejemplos, no convenciones del runtime. Una
 geografia o catalogo puede usar cualquier nombre y directorio: el contenido
 validado, nunca el filename o sus fragmentos de ruta, determina su significado.
+## Simulation CLI
+
+El comando `simulate` ejecuta un scenario completo mediante `SimulationRunner` y
+muestra solamente el resumen final, incluidos ticks, ejecuciones y metricas
+comerciales del ultimo tick cuando estan disponibles.
+
+```bash
+dataforge simulate configs/scenarios/taqueria-colombia.yaml
+```
+
+## Runtime Verification API
+
+`POST /simulation/verify` ejecuta sincronicamente el mismo `SimulationRunner` para
+verificar el pipeline completo. `scenario_path` debe señalar un archivo local
+accesible por el proceso de la aplicacion.
+
+```json
+{
+  "scenario_path": "configs/scenarios/taqueria-colombia.yaml"
+}
+```
+
+La respuesta es un resumen tipado; ninguna de estas superficies persiste estado,
+exporta resultados, acepta uploads o ejecuta trabajos en background.
 ## Calidad y pruebas
 
 ```bash

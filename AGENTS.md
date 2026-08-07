@@ -64,7 +64,7 @@
 - Customer behavior must preserve assigned units plus unassigned units equal to demand.
 - All customer behavior randomness uses RandomEngine and stable iteration order.
 - Store CustomerBehaviorContext before publishing its event.
-- Never assume a global Product is offered at every Location; InventoryItem defines the Location × Product assortment.
+- Never assume a global Product is offered at every Location; InventoryItem defines the Location Ã— Product assortment.
 - Zero stock means offered but out of stock, not absent from the assortment.
 - No commercial activity may occur before Location.opened_at.
 - CustomerBehavior fulfillment is same-city only in the MVP.
@@ -98,9 +98,20 @@
 - Scenario files describe configuration, never behavior; generators and engines must not read Scenario YAML directly.
 - Resolve relative scenario paths against the scenario file itself.
 - Reuse existing configuration models and do not expose ceremonial options for components without parameters.
-- A future runtime converts ScenarioDefinition into executable objects.
+- SimulationRunner converts ScenarioDefinition into fresh executable runtime objects.
 - Never infer country, business type, scenario behavior, or configuration semantics from a file name or path.
 - Geography sources may use any file name; their content must be validated against GeographyDefinition.
 - Product catalog sources may use any file name; their content must be validated against ProductCatalogDefinition.
 - Example files such as colombia.yaml, mexico.yaml, taqueria.yaml, or farmacia.yaml are fixtures/examples only and must never become runtime conventions.
 - Scenario source paths are user-provided configuration; validated file content, never the filename, is the source of truth.
+- SimulationRunner is the explicit composition root for the standard MVP simulation pipeline.
+- SimulationRunner must use existing loaders, generators, engines, and orchestrators rather than duplicating their logic.
+- The standard engine order must remain explicit; do not introduce engine or generator registries without a feature that justifies them.
+- Every SimulationRunner.run() must build a fresh runtime state, clock, and RandomEngine.
+- Scenario filenames and paths carry no business semantics; validated configuration content is the source of truth.
+- SimulationRunner does not export or persist data.
+- CLI and API runtime surfaces must delegate full execution to SimulationRunner; never duplicate bootstrap or engine assembly.
+- Public runtime summaries must read official values from SimulationResult and existing contexts rather than recalculating business logic.
+- POST /simulation/verify is synchronous and must not persist or export simulation state.
+- Existing API endpoints must remain backward compatible.
+- Never report a simulation as successful if SimulationRunner or StateValidationEngine failed.

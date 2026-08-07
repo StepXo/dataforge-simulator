@@ -6,8 +6,12 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Annotated
 
 import typer
+
+from dataforge.runtime.runner import SimulationRunner
+from dataforge.runtime.summary import build_simulation_summary
 
 app = typer.Typer(help="Local development commands for DataForge Simulator.")
 
@@ -160,6 +164,36 @@ def finish(exit_code: int) -> None:
     """Exit Typer only when an invoked process failed."""
     if exit_code != 0:
         raise typer.Exit(exit_code)
+
+
+@app.command()
+def simulate(scenario: Annotated[Path, typer.Argument(exists=False)]) -> None:
+    """Execute a complete scenario through the standard simulation runtime."""
+    try:
+        result = SimulationRunner.from_file(scenario).run()
+        summary = build_simulation_summary(result)
+    except Exception as error:
+        typer.echo(f"Simulation failed: {error}", err=True)
+        raise typer.Exit(1) from error
+
+    if not summary.validation_passed:
+        typer.echo("Simulation failed: final state validation is missing", err=True)
+        raise typer.Exit(1)
+
+    simulation = result.scenario.simulation
+    typer.echo("Simulation completed")
+    typer.echo(f"Scenario: {scenario.name}")
+    typer.echo(f"Seed: {summary.seed}")
+    typer.echo(f"Start: {simulation.start_datetime.isoformat()}")
+    typer.echo(f"End: {simulation.end_datetime.isoformat()}")
+    typer.echo(f"Tick unit: {summary.tick_unit}")
+    typer.echo(f"Ticks processed: {summary.ticks_processed}")
+    typer.echo(f"Engine executions: {summary.engine_executions}")
+    if summary.completed_transactions is not None:
+        typer.echo(f"Completed transactions: {summary.completed_transactions}")
+        typer.echo(f"Rejected transactions: {summary.rejected_transactions}")
+        typer.echo(f"Net sales: {summary.net_sales_amount}")
+        typer.echo(f"Lost sales: {summary.lost_sales_amount}")
 
 
 @app.command()
