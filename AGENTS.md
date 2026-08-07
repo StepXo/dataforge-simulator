@@ -80,3 +80,15 @@
 - TransactionEngine must use PriceQuote values and never recalculate pricing.
 - Rejected transactions retain their potential monetary value.
 - Store TransactionContext before publishing transaction events.
+- InventoryEngine is the only current engine that applies stock exits; never allow current_stock below zero.
+- Validate every completed transaction and accumulated quantity before mutating inventory.
+- Rejected transactions never change Inventory, and ReorderSignal never implies replenishment.
+- InventoryItem remains immutable and must be updated through explicit replacement.
+- Check duplicate InventoryEngine execution before modifying stock.
+- Never replenish immediately when lead time is at least one tick.
+- Keep at most one pending replenishment per InventoryItem and never exceed max_stock.
+- Complete due replenishments before scheduling new ones; ReplenishmentEngine never creates sales.
+- All replenishment randomness must use RandomEngine.
+- MetricsEngine is read-only with respect to business state and must not recalculate prior engine logic.
+- Lost sales and unassigned demand are different metrics; official sales amounts come from TransactionContext.
+- Official units sold must match InventoryContext, and metrics remain per-tick rather than historical aggregates.

@@ -438,6 +438,76 @@ TransactionEngine
     +-- rejected
 ```
 
+## Inventory Engine
+
+`InventoryEngine` consume el `TransactionContext` y aplica exclusivamente las
+transacciones `completed`. Cada venta reemplaza el `InventoryItem` inmutable por
+una nueva instancia con el stock descontado y produce un `InventoryMovement`.
+El stock resultante permanece en `SimulationState` y es visible en ticks posteriores.
+
+Al finalizar el tick genera senales para items modificados que quedan en o debajo
+del reorder point y para los que llegan a stock cero. Las senales no reponen stock.
+El engine valida todas las cantidades acumuladas antes de mutar y nunca decide si
+una venta debe completarse:
+
+```text
+TransactionEngine decides
+        |
+completed Transactions
+        |
+InventoryEngine applies
+        |
+Inventory state updated
+```
+
+El contexto se guarda antes de publicar eventos. El estado en memoria no ofrece
+rollback general si ocurre un fallo inesperado al guardar despues de los reemplazos.
+## Replenishment Engine
+
+`ReplenishmentEngine` consume los `ReorderSignal` del tick y programa recepciones
+futuras con un lead time reproducible medido en ticks. Conserva como maximo una
+reposicion pending por InventoryItem y completa vencimientos antes de procesar
+nuevas senales. Al recibir stock reemplaza el `InventoryItem` inmutable hasta
+`max_stock` sin superarlo y publica un movimiento de tipo `replenishment`.
+
+```text
+InventoryEngine
+    |
+ReorderSignal
+    |
+ReplenishmentEngine
+    |
+PendingReplenishment
+    |
+future tick -> stock replenished
+```
+
+No existen proveedores, ordenes de compra ni reposicion instantanea: mientras se
+espera el due tick, el producto puede permanecer agotado.
+## Metrics Engine
+
+`MetricsEngine` se ejecuta al final del flujo comercial y crea un snapshot read-only
+por tick. Resume demanda, intents, cotizaciones, transacciones completadas y
+rechazadas, movimientos de inventario y reposiciones sin recalcular ni modificar
+el estado de negocio.
+
+```text
+Demand
+  |
+Intents
+  |
+Transactions
+  |
+Inventory
+  |
+Replenishment
+  |
+MetricsEngine
+```
+
+La demanda no asignada representa unidades que no llegaron a un intent; lost sales
+representa el valor cotizado de transacciones rechazadas. Son metricas distintas.
+Los snapshots se conservan en `metrics_context` y no incluyen agregados historicos.
 ## Calidad y pruebas
 
 ```bash

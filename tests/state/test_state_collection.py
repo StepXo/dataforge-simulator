@@ -75,3 +75,15 @@ def test_state_collection_rejects_duplicate_key() -> None:
 
     with pytest.raises(ValueError, match="State key already exists: record"):
         collection.add("record", Record(name="replacement"))
+
+
+def test_state_collection_replace_requires_existing_key_and_preserves_order() -> None:
+    collection: StateCollection[Record] = StateCollection()
+    collection.add("first", Record(name="before"))
+    collection.add("second", Record(name="second"))
+
+    collection.replace("first", Record(name="after"))
+
+    assert collection.all() == (Record(name="after"), Record(name="second"))
+    with pytest.raises(KeyError):
+        collection.replace("missing", Record(name="value"))
