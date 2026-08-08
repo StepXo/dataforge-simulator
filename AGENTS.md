@@ -1,154 +1,38 @@
 # Agent guidelines
 
-- Preserve the current FastAPI service and backward compatibility of existing endpoints.
-- Run `uv sync --dev`, Ruff format and lint checks, `mypy src`, Pytest, and the Docker build before completing a feature.
-- Use `uv run dataforge check` as a convenient local validation, while preserving and respecting CI's explicit independent commands.
-- Do not add dependencies or abstractions unless the current feature requires them.
-- Update tests and `README.md` whenever behavior changes.
-- Never report a validation as passing unless it was actually executed successfully.
-- Never add distributed infrastructure to the event system without a feature that justifies it.
-- Every new simulation engine must depend only on `SimulationContext` and the Core Domain; it must never access external components directly.
-- Every concrete engine must satisfy the `SimulationEngine` protocol.
-- Engines must receive `SimulationContext` and `SimulationClock`; no engine may manage its own clock.
-- Do not add engine lifecycle, priorities, or registration without a feature that justifies them.
-- `SimulationOrchestrator` is the only component that controls the execution loop.
-- Engines must not advance the clock or execute other engines directly.
-- Every engine in a tick must observe the same time and tick index.
-- A tick does not limit how many actions an engine can generate.
-- Do not add engine priorities, dependencies, concurrency, or retries without a feature that justifies them.
-- Initial master data must be created by `BootstrapGenerator`, never by a per-tick engine.
-- Bootstrap generators do not receive `SimulationClock`, and engines must not recreate master data each tick.
-- All shared execution state belongs in `SimulationState`; never use global state or singletons.
-- `SimulationState` is not a database and does not replace persistence.
-- `BootstrapRunner` preserves generator order; do not add rollback, priorities, dependencies, or parallelism without a feature that justifies them.
-- `TimeEngine` never advances the clock; only the orchestrator may do so.
-- Run `TimeEngine` before engines that depend on temporal context.
-- Engines share results through `SimulationState`; temporal context uses key `tick-{tick_index}`.
-- Day names must not depend on the system locale, and ticks do not limit generated actions.
-- Concrete engines must not know FastAPI, the CLI, or persistence.
-- Never hardcode countries, regions, or cities inside generators; reference geography comes from external configuration.
-- Geography configuration must not contain location business rules.
-- Do not add configuration formats without an explicit feature.
-- GeographyGenerator must never hardcode countries, regions, or cities; reference data comes from GeographyDefinition.
-- Only synthetic Location characteristics use RandomEngine.
-- GeographyGenerator is bootstrap logic and must never run per tick.
-- Store each entity before publishing its creation event.
-- ProductGenerator must never hardcode catalogs; concrete catalogs belong in configuration.
-- Represent money with Decimal, never float.
-- ProductGenerator is bootstrap logic, not a per-tick engine.
-- Store Product before publishing ProductCreated.
-- Do not introduce dynamic pricing into bootstrap.
-- CustomerGenerator is bootstrap and never generates transactions.
-- A future CustomerBehaviorEngine owns per-tick customer behavior.
-- Customers must reference existing geography.
-- Do not add personal data without a feature that requires it.
-- All customer randomness uses RandomEngine.
-- Store Customer before publishing CustomerCreated.
-- InventoryBootstrapGenerator only creates initial state; never generate movements during bootstrap.
-- All dynamic stock changes belong to a future InventoryEngine.
-- Inventory requires Geography and Product bootstrap first.
-- All inventory randomness uses RandomEngine.
-- Store InventoryItem before publishing InventoryItemCreated.
-- PromotionBootstrapGenerator only creates the calendar; never apply discounts during bootstrap.
-- A future PromotionEngine decides activation per tick.
-- A future DemandEngine consumes demand_lift.
-- All promotion randomness uses RandomEngine.
-- Store Promotion before publishing PromotionCreated.
-- PromotionEngine never advances the clock and must run after TimeEngine.
-- PromotionEngine only determines temporal activation; never apply prices or demand lift there.
-- Preserve PromotionContext history by tick and store before publishing.
-- DemandEngine never generates sales or reduces inventory; zero stock does not imply zero demand.
-- All demand randomness uses RandomEngine and inventory iteration order must remain stable.
-- DemandEngine requires TimeEngine followed by PromotionEngine and stores before publishing.
-- CustomerBehaviorEngine generates purchase intents, never sales, and never mutates Customer or inventory.
-- Customer behavior must preserve assigned units plus unassigned units equal to demand.
-- All customer behavior randomness uses RandomEngine and stable iteration order.
-- Store CustomerBehaviorContext before publishing its event.
-- Never assume a global Product is offered at every Location; InventoryItem defines the Location Ã— Product assortment.
-- Zero stock means offered but out of stock, not absent from the assortment.
-- No commercial activity may occur before Location.opened_at.
-- CustomerBehavior fulfillment is same-city only in the MVP.
-- PurchaseIntent.location_id is the fulfillment Location.
-- PricingEngine creates quotes, never sales, and never decides fulfillment.
-- Every PriceQuote requires an active InventoryItem; zero stock still permits quoting.
-- Location-targeted promotions must never leak to other Locations.
-- Pricing money always uses Decimal.
-- PricingEngine never mutates Product, Promotion, Inventory, or PurchaseIntent.
-- Store PricingContext before publishing its event.
-- TransactionEngine never mutates Inventory and uses a local ledger per tick.
-- Transactions are all-or-nothing in the MVP; never permit overselling.
-- TransactionEngine must use PriceQuote values and never recalculate pricing.
-- Rejected transactions retain their potential monetary value.
-- Store TransactionContext before publishing transaction events.
-- InventoryEngine is the only current engine that applies stock exits; never allow current_stock below zero.
-- Validate every completed transaction and accumulated quantity before mutating inventory.
-- Rejected transactions never change Inventory, and ReorderSignal never implies replenishment.
-- InventoryItem remains immutable and must be updated through explicit replacement.
-- Check duplicate InventoryEngine execution before modifying stock.
-- Never replenish immediately when lead time is at least one day.
-- Keep at most one pending replenishment per InventoryItem and never exceed max_stock.
-- Complete due replenishments before scheduling new ones; ReplenishmentEngine never creates sales.
-- All replenishment randomness must use RandomEngine.
-- MetricsEngine is read-only with respect to business state and must not recalculate prior engine logic.
-- Lost sales and unassigned demand are different metrics; official sales amounts come from TransactionContext.
-- Official units sold must match InventoryContext, and metrics remain per-tick rather than historical aggregates.
-- StateValidationEngine must remain the final MVP engine; validation detects and never repairs.
-- Validate invariants between outputs without duplicating prior engine algorithms or modifying business state.
-- An invalid tick must fail immediately.
-- Scenario files describe configuration, never behavior; generators and engines must not read Scenario YAML directly.
-- Resolve relative scenario paths against the scenario file itself.
-- Reuse existing configuration models and do not expose ceremonial options for components without parameters.
-- SimulationRunner converts ScenarioDefinition into fresh executable runtime objects.
-- Never infer country, business type, scenario behavior, or configuration semantics from a file name or path.
-- Geography sources may use any file name; their content must be validated against GeographyDefinition.
-- Product catalog sources may use any file name; their content must be validated against ProductCatalogDefinition.
-- Example files such as colombia.yaml, mexico.yaml, taqueria.yaml, or farmacia.yaml are fixtures/examples only and must never become runtime conventions.
-- Scenario source paths are user-provided configuration; validated file content, never the filename, is the source of truth.
-- SimulationRunner is the explicit composition root for the standard MVP simulation pipeline.
-- SimulationRunner must use existing loaders, generators, engines, and orchestrators rather than duplicating their logic.
-- The standard engine order must remain explicit; do not introduce engine or generator registries without a feature that justifies them.
-- Every SimulationRunner.run() must build a fresh runtime state, clock, and RandomEngine.
-- Scenario filenames and paths carry no business semantics; validated configuration content is the source of truth.
-- SimulationRunner does not export or persist data.
-- CLI and API runtime surfaces must delegate full execution to SimulationRunner; never duplicate bootstrap or engine assembly.
-- Public runtime summaries must read official values from SimulationResult and existing contexts rather than recalculating business logic.
-- POST /simulation/verify is synchronous and must not persist or export simulation state.
-- Existing API endpoints must remain backward compatible.
-- Never report a simulation as successful if SimulationRunner or StateValidationEngine failed.
-- Business durations must not change meaning when TickUnit changes; convert domain durations to ticks at runtime.
-- Replenishment lead times are expressed in days, never raw ticks.
-- Demand base ranges represent an hourly baseline and must be scaled to the duration represented by each tick.
-- A daily demand tick must account for the intraday time-of-day profile rather than treating the whole day as the clock hour at tick start.
-- Changing simulation resolution must change temporal granularity, not the underlying business rate semantics.
-- Run-level metrics must aggregate MetricsContext snapshots; never present the final tick as the total simulation result.
-- Master-data bootstrap must never depend on simulation end_datetime; extending the horizon must not rewrite initial state.
-- DataForge simulations must preserve horizon invariance: with the same seed, start time, and configuration, extending end_datetime must not change already simulated ticks.
-- Bootstrap customers represent the customer population existing at simulation start; future customer growth or churn belongs to a dedicated runtime feature.
-- Bootstrap locations represent locations already operating at simulation start; future openings require a dedicated runtime feature.
-- PromotionBootstrapGenerator creates annual promotion patterns, not horizon-bound promotion occurrences.
-- Promotion patterns exist independently of the simulation date range and may recur once per calendar year.
-- Annual promotion occurrence variation must be deterministic for a given seed, promotion, and year and must not depend on simulation horizon length.
-- Transaction represents one finalized basket/checkout; product-level outcomes belong to TransactionLine.
-- Never use transaction as a synonym for product line in public metrics or documentation.
-- InventoryEngine applies stock changes from completed TransactionLines, not from basket-level Transaction status alone.
-- Out-of-stock metrics count events/signals unless explicitly labeled as unique inventory items.
-- Use the dedicated smoke-test scenario for runtime smoke validation; never use long-running business scenarios as the default smoke test.
-- Multi-month hourly simulations belong to slow temporal regression tests, not the default fast test suite.
-- The Operational Data Model describes logical datasets and must remain independent of CSV, Parquet, SQL, databases, and analytics schemas.
-- Physical exporters translate logical ODM types into destination-specific representations; the ODM never contains destination-specific types.
-- ODM schemas must derive from the current simulation domain rather than legacy database schemas.
-- Transactions are basket-level datasets and TransactionLines are product-level datasets.
-- Operational datasets must distinguish current snapshots from historical facts.
-- Star-schema dimensions and facts must not leak into the operational model.
-- Historical tick data may only be evicted after StateValidationEngine succeeds and the configured OperationalDataSink accepts the tick output.
-- Streaming mode must retain master/current state required by future ticks while releasing historical tick contexts that are no longer needed.
-- Simulation business logic must remain identical between full-history and streaming modes.
-- RunMetricsSummary must be computable incrementally; never retain MetricsContext history solely for final aggregation.
-- Physical exporters consume incremental operational output through the sink contract and must not require the full simulation history in memory.
-- A failed output write must never be followed by tick eviction or clock advancement.
-- Every physical exporter must consume OperationalDataSink incrementally.
-- Physical exporters must never require the full simulation history in memory.
-- Shared logic between exporters must remain format-independent.
-- Arrow schemas must always be derived from the Operational Data Model.
-- Decimal values must never be converted through float.
-- CSV and Parquet exporters must preserve identical logical datasets.
+## Quality and scope
+
+- Run the validations required by the task before reporting completion; never claim a check passed unless it was actually executed successfully.
+- Preserve public CLI, API, scenario, and data contracts unless the current requirement explicitly changes them, and update tests and documentation when behavior changes.
+- Do not add dependencies, abstractions, infrastructure, or patterns unless the current requirement justifies them.
+- Prefer explicit composition and small contracts over registries, factories, managers, service locators, or hidden framework behavior.
+
+## Architecture
+
+- Keep package boundaries clear: Core must not depend on engines, API, CLI, or physical exporters, and domain components must not access external surfaces directly.
+- `SimulationRunner` is the explicit composition root; `SimulationOrchestrator` exclusively owns the tick loop and clock advancement.
+- Engines operate through `SimulationContext` and `SimulationState`, stay within their domain responsibility, and never execute other engines or duplicate their business logic.
+- Bootstrap generators create initial and master state; engines evolve runtime state, and shared state must not use globals or singletons.
+- `StateValidationEngine` remains the final engine of every tick; invalid state must fail instead of being repaired silently.
+- Scenario paths and filenames carry no business semantics; validated configuration content is the source of truth.
+
+## Determinism and temporal semantics
+
+- All simulation randomness must use `RandomEngine`; the same scenario and seed must remain reproducible.
+- Extending `end_datetime` must not rewrite bootstrap state or previously simulated ticks.
+- Demand ranges are hourly baselines and must scale with tick duration, including the intraday profile for daily ticks.
+- Replenishment lead times are expressed in days and must retain their business meaning across tick resolutions.
+
+## Domain invariants
+
+- Never use `float` for money; monetary values and serialization must preserve `Decimal` exactly.
+- `InventoryItem` defines the Location × Product assortment: missing means not offered, while zero stock means offered but unavailable; stock must never become negative.
+- `Transaction` represents one basket or checkout, while `TransactionLine` represents a product-level outcome.
+- Engines must preserve commercial conservation invariants and must not allow activity before a Location opens.
+
+## Streaming and export
+
+- Historical tick state may be released only after validation and successful sink consumption; a failed write must prevent eviction and clock advancement.
+- Streaming and full-history modes must produce equivalent business results, while streaming must not retain complete tick history unnecessarily.
+- The Operational Data Model remains independent of CSV, Parquet, SQL, and analytics schemas; physical exporters consume operational records incrementally.
+- CSV and Parquet must expose identical logical datasets, and Arrow schemas must be derived from the Operational Data Model.
