@@ -50,4 +50,5 @@ class SimulationResult:
     bootstrap_summary: BootstrapRunSummary
     simulation_summary: SimulationRunSummary
     metrics_summary: RunMetricsSummary
+    validation_passed: bool
     state: SimulationState

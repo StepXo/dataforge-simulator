@@ -4,14 +4,16 @@ from dataforge.core.events.event import DomainEvent
 
 
 class EventStore:
-    """Store domain events for the lifetime of the current process."""
+    """Optionally retain domain events for the lifetime of the process."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, retain_events: bool = True) -> None:
         self._events: list[DomainEvent] = []
+        self._retain_events = retain_events
 
     def append(self, event: DomainEvent) -> None:
-        """Append an event to the store."""
-        self._events.append(event)
+        """Append an event when history retention is enabled."""
+        if self._retain_events:
+            self._events.append(event)
 
     def all_events(self) -> list[DomainEvent]:
         """Return a snapshot of all stored events."""

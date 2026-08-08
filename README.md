@@ -274,9 +274,9 @@ colombia.yaml -> load_geography() -> GeographyDefinition
 This generator runs during bootstrap, never once per tick.
 ## Product Bootstrap
 
-El catálogo proviene de YAML y `ProductGenerator` no conoce un negocio concreto.
-`configs/products/taqueria.yaml` contiene categorías y productos con precios y
-costos `Decimal`. El generator calcula `base_margin` como proporción redondeada a
+El catÃ¡logo proviene de YAML y `ProductGenerator` no conoce un negocio concreto.
+`configs/products/taqueria.yaml` contiene categorÃ­as y productos con precios y
+costos `Decimal`. El generator calcula `base_margin` como proporciÃ³n redondeada a
 cuatro decimales y genera un `activity_factor` reproducible desde la seed. Se
 ejecuta durante bootstrap y no genera ventas ni inventario.
 
@@ -287,7 +287,7 @@ taqueria.yaml -> load_product_catalog() -> ProductCatalogDefinition
 
 ## Customer Bootstrap
 
-`CustomerGenerator` crea durante bootstrap una población inicial reproducible y no
+`CustomerGenerator` crea durante bootstrap una poblaciÃ³n inicial reproducible y no
 genera compras. Cada cliente referencia ciudades, regiones y locations existentes,
 y conserva segmento, frecuencia base mensual, canal preferido, sensibilidad a
 promociones y factor de actividad para futuros engines.
@@ -301,18 +301,18 @@ tick ni crea transacciones.
 ## Inventory Bootstrap
 
 `InventoryBootstrapGenerator` crea el stock inicial antes de los ticks. Cada
-`InventoryItem` representa una combinación Product x Location y no un movimiento
-histórico. La disponibilidad y cantidades son reproducibles; el cálculo pondera la
-variación aleatoria, la capacidad de `Location` y el `activity_factor` de Product.
-El futuro `InventoryEngine` será responsable de modificar este estado.
+`InventoryItem` representa una combinaciÃ³n Product x Location y no un movimiento
+histÃ³rico. La disponibilidad y cantidades son reproducibles; el cÃ¡lculo pondera la
+variaciÃ³n aleatoria, la capacidad de `Location` y el `activity_factor` de Product.
+El futuro `InventoryEngine` serÃ¡ responsable de modificar este estado.
 
 ```text
 locations + products
-        ↓
+        â†“
 InventoryBootstrapGenerator
-        ↓
+        â†“
 inventory
-        ↓
+        â†“
 SimulationState
 ```
 ## Promotion Bootstrap
@@ -320,50 +320,50 @@ SimulationState
 `PromotionBootstrapGenerator` crea un calendario inicial reproducible y no aplica
 promociones. Cada `Promotion` tiene periodo, target, canal, descuento proporcional
 y demand lift potencial dentro de `SimulationState`. El futuro `PromotionEngine`
-decidirá cuáles están activas en cada tick.
+decidirÃ¡ cuÃ¡les estÃ¡n activas en cada tick.
 
 ```text
 products + geography
-        ↓
+        â†“
 PromotionBootstrapGenerator
-        ↓
+        â†“
 promotions
-        ↓
+        â†“
 SimulationState
 ```
 ## Promotion Engine
 
-`PromotionEngine` se ejecuta por tick después de `TimeEngine`. Consume el calendario
-`promotions` y el `TemporalContext` actual, determina activación temporal inclusiva
-y guarda un `PromotionContext` histórico. No aplica descuentos, demand lift ni
+`PromotionEngine` se ejecuta por tick despuÃ©s de `TimeEngine`. Consume el calendario
+`promotions` y el `TemporalContext` actual, determina activaciÃ³n temporal inclusiva
+y guarda un `PromotionContext` histÃ³rico. No aplica descuentos, demand lift ni
 resuelve targets para transacciones concretas.
 
 ```text
 TimeEngine
-    ↓
+    â†“
 TemporalContext
-    ↓
+    â†“
 PromotionEngine
-    ↓
+    â†“
 PromotionContext
 ```
 ## Demand Engine
 
-`DemandEngine` se ejecuta después de `TimeEngine` y `PromotionEngine`, y genera
-demanda potencial por cada combinación activa Location x Product definida por el
+`DemandEngine` se ejecuta despuÃ©s de `TimeEngine` y `PromotionEngine`, y genera
+demanda potencial por cada combinaciÃ³n activa Location x Product definida por el
 inventario. No genera ventas ni descuenta stock: incluso stock cero conserva la
-intención de compra y `requested_units` puede superar las existencias. Las
-promociones de canal `all` pueden aumentar demanda; las específicas de canal aún
+intenciÃ³n de compra y `requested_units` puede superar las existencias. Las
+promociones de canal `all` pueden aumentar demanda; las especÃ­ficas de canal aÃºn
 no se aplican. Las unidades se materializan mediante stochastic rounding
 reproducible.
 
 ```text
 TimeEngine
-   ↓
+   â†“
 PromotionEngine
-   ↓
+   â†“
 DemandEngine
-   ↓
+   â†“
 DemandContext
 ```
 ## Demand temporal semantics
@@ -377,7 +377,7 @@ no la tasa comercial subyacente.
 
 ## Customer Behavior Engine
 
-`CustomerBehaviorEngine` se ejecuta después de `DemandEngine`. Consume el
+`CustomerBehaviorEngine` se ejecuta despuÃ©s de `DemandEngine`. Consume el
 `DemandContext` del tick y asigna sus unidades a clientes elegibles mediante pesos
 reproducibles basados en segmento, frecuencia de compra, factor de actividad,
 location preferida, canal preferido y sensibilidad a promociones. Produce
@@ -387,20 +387,20 @@ asociarse a un cliente. Los intents del mismo tick que comparten customer, Locat
 El engine no crea ventas, no calcula precios y no comprueba ni descuenta stock. En
 cada tick se conserva la igualdad `assigned + unassigned = demand`.
 `PurchaseIntent.location_id` identifica la Location de fulfillment y, en este MVP,
-solo puede pertenecer a la misma ciudad y región del cliente y estar abierta.
+solo puede pertenecer a la misma ciudad y regiÃ³n del cliente y estar abierta.
 
-`InventoryItem` define el surtido comercial Location × Product: si no existe, el
+`InventoryItem` define el surtido comercial Location Ã— Product: si no existe, el
 producto no se ofrece en esa sede. Si existe activo con `current_stock = 0`, el
-producto sí se ofrece pero está agotado; la intención de compra continúa siendo
-válida para poder medir demanda perdida posteriormente.
+producto sÃ­ se ofrece pero estÃ¡ agotado; la intenciÃ³n de compra continÃºa siendo
+vÃ¡lida para poder medir demanda perdida posteriormente.
 
 ```text
 DemandEngine
-    ↓
+    â†“
 DemandContext
-    ↓
+    â†“
 CustomerBehaviorEngine
-    ↓
+    â†“
 PurchaseIntents
 ```
 ## Pricing Engine
@@ -408,22 +408,22 @@ PurchaseIntents
 `PricingEngine` consume cada `PurchaseIntent` y produce exactamente un `PriceQuote`
 a partir de `Product.base_price` y las promociones activas que coinciden en target y
 canal. Si varias promociones aplican, utiliza solo la de mayor descuento; los
-empates conservan el orden del `PromotionContext`. Una promoción dirigida a una
+empates conservan el orden del `PromotionContext`. Una promociÃ³n dirigida a una
 Location nunca afecta cotizaciones de otra sede. Cada `PriceQuote` conserva el `basket_id` de su intent.
 
-Todo valor monetario usa `Decimal`, precisión de centavos y `ROUND_HALF_UP`. El
+Todo valor monetario usa `Decimal`, precisiÃ³n de centavos y `ROUND_HALF_UP`. El
 engine no crea ventas, no decide fulfillment y no modifica productos, promociones
-o inventario. Valida que Location × Product pertenezca al surtido activo, pero no
+o inventario. Valida que Location Ã— Product pertenezca al surtido activo, pero no
 exige stock positivo:
 
 ```text
-InventoryItem inexistente → no se puede cotizar
-InventoryItem activo con stock=0 → sí se puede cotizar
+InventoryItem inexistente â†’ no se puede cotizar
+InventoryItem activo con stock=0 â†’ sÃ­ se puede cotizar
 
 PurchaseIntent
-    ↓
+    â†“
 PricingEngine
-    ↓
+    â†“
 PriceQuote
 ```
 
@@ -573,7 +573,7 @@ dataforge simulate taqueria-colombia
 ## Runtime Verification API
 
 `POST /simulation/verify` ejecuta sincronicamente el mismo `SimulationRunner` para
-verificar el pipeline completo. `scenario_path` debe señalar un archivo local
+verificar el pipeline completo. `scenario_path` debe seÃ±alar un archivo local
 accesible por el proceso de la aplicacion.
 
 ```json
@@ -637,3 +637,96 @@ uv run pytest
 The fast suite covers day and month horizons with hourly and daily ticks. The slow
 suite owns the complete temporal matrix, including six-month hourly simulations.
 The project does not install `pytest-xdist`, so these tests run with one worker.
+## Operational Data Model
+
+DataForge separates simulation behavior from logical datasets and physical output:
+
+```text
+Simulation Domain
+        |
+Operational Data Model
+        |
+Future physical exporters
+```
+
+The Operational Data Model (ODM) defines format-independent dataset names,
+columns, logical types, keys, and relationships. It does not contain rows and does
+not write files or database objects. CSV, Parquet, SQL, and analytics/star-schema
+representations remain future translations of this logical model.
+
+Master snapshots include geography, locations, categories, products, customers,
+and annual promotion patterns. `inventory` is the final Location x Product
+snapshot. Historical datasets are basket-level `transactions`, product-level
+`transaction_lines`, `inventory_movements`, `replenishments`, and per-tick
+`metrics`. Repeated promotion targets and applied promotions use the bridge
+datasets `promotion_targets` and `transaction_line_promotions`; no array or JSON
+storage representation is imposed.
+
+`RunMetricsSummary` is intentionally not an ODM dataset because the current runtime
+has no logical run identifier. It remains the in-memory summary for one completed
+execution.
+
+### Incremental simulation output
+
+The default runner remains an in-memory debugging mode and retains every tick context. When an `OperationalDataSink` is supplied, the runtime streams format-independent operational records without writing files:
+
+```text
+bootstrap -> master rows -> tick -> validate -> historical rows -> sink
+          -> evict tick history -> next tick -> final inventory snapshot
+```
+
+Master/current state (including current inventory and pending replenishments) remains available to future ticks. Only validated historical contexts are removed, and only after the sink accepts their rows. Run metrics are accumulated incrementally. Replenishments are emitted once as a final operational snapshot so their final status is preserved. The physical CSV and Parquet sinks described below consume this lifecycle.
+
+## Physical Exporters
+
+DataForge can stream the same Operational Data Model to CSV or Parquet without
+retaining the complete simulation history in memory:
+
+```text
+Simulation
+    -> OperationalRecord
+    -> OperationalDataSink
+        +-- CsvOperationalDataSink
+        +-- ParquetOperationalDataSink
+```
+
+Both sinks consume bootstrap, validated tick, and final-snapshot records through
+the existing incremental lifecycle. Each ODM dataset produces one file, including
+empty datasets, and existing expected output files are never overwritten. Parquet
+uses ODM-derived physical Arrow schemas and preserves typed Decimal, date, datetime,
+boolean, numeric, and string values. CSV uses the same dataset and column order but
+serializes Decimal and temporal values textually. Export buffering is bounded by
+the configured per-dataset batch size rather than the simulation horizon.
+
+### CLI and API export
+
+The existing command still runs without exporting when no export options are given.
+CSV, Parquet, and combined exports use the same incremental simulation run:
+
+```bash
+dataforge simulate smoke-test --format csv --output outputs/demo-csv
+dataforge simulate smoke-test --format parquet --output outputs/demo-parquet
+dataforge simulate smoke-test --format both --output outputs/demo-both
+```
+
+`--format` and `--output` must be provided together. Combined output uses
+`<output>/csv/` and `<output>/parquet/`; either existing target causes preflight to
+fail before simulation starts.
+
+The synchronous API writes to the server-local `outputs/` root and accepts only
+relative destinations below that root:
+
+```http
+POST /simulation/export
+Content-Type: application/json
+
+{
+  "scenario": "smoke-test",
+  "format": "both",
+  "output": "api-demo"
+}
+```
+
+The response contains the output location, dataset count, validation status, and
+the same official run summary used by runtime verification. It does not return a
+ZIP or binary download.
