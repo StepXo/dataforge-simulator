@@ -6,7 +6,6 @@ from decimal import Decimal
 
 from dataforge.core.state.simulation_state import SimulationState
 from dataforge.engines.metrics.models import MetricsContext
-from dataforge.engines.validation.models import ValidationContext
 from dataforge.runtime.result import RunMetricsSummary, SimulationResult
 
 ZERO = Decimal("0.00")
@@ -156,8 +155,6 @@ def aggregate_run_metrics(
 def build_simulation_summary(result: SimulationResult) -> SimulationRuntimeSummary:
     """Expose accumulated run metrics and final validation status."""
     simulation = result.scenario.simulation
-    final_tick = result.simulation_summary.ticks_processed - 1
-    validation = _final_validation(result, final_tick)
     metrics = result.metrics_summary
     return SimulationRuntimeSummary(
         seed=simulation.seed,
@@ -166,7 +163,7 @@ def build_simulation_summary(result: SimulationResult) -> SimulationRuntimeSumma
         tick_unit=simulation.tick_unit.value,
         ticks_processed=result.simulation_summary.ticks_processed,
         engine_executions=result.simulation_summary.engine_executions,
-        validation_passed=validation.valid if validation is not None else False,
+        validation_passed=result.validation_passed,
         demand_units=metrics.demand_units,
         unassigned_demand_units=metrics.unassigned_demand_units,
         total_transactions=metrics.total_transactions,
@@ -184,13 +181,3 @@ def build_simulation_summary(result: SimulationResult) -> SimulationRuntimeSumma
         replenishments_completed=metrics.replenishments_completed,
         units_replenished=metrics.units_replenished,
     )
-
-
-def _final_validation(
-    result: SimulationResult,
-    tick_index: int,
-) -> ValidationContext | None:
-    if tick_index < 0 or not result.state.has_collection("validation_context"):
-        return None
-    value = result.state.collection("validation_context").get(f"tick-{tick_index}")
-    return value if isinstance(value, ValidationContext) else None

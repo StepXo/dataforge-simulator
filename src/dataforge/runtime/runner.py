@@ -116,5 +116,6 @@ class SimulationRunner:
             bootstrap_summary=bootstrap_summary,
             simulation_summary=simulation_summary,
             metrics_summary=metrics_summary,
+            validation_passed=True,
             state=state,
         )

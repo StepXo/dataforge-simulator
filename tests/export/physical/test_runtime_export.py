@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
+from dataforge.export.files.configuration import ExportFormat, build_export_sink
 from dataforge.export.files.csv_sink import CsvOperationalDataSink
 from dataforge.export.files.parquet_sink import ParquetOperationalDataSink
 from dataforge.export.operational.schema import build_operational_data_model
@@ -44,12 +45,16 @@ def test_smoke_scenario_is_equivalent_across_all_incremental_sinks(
 ) -> None:
     csv_directory = tmp_path / "csv"
     parquet_directory = tmp_path / "parquet"
+    both_directory = tmp_path / "both"
 
     null_result = SimulationRunner.from_file(
         SCENARIO, sink=NullOperationalDataSink()
     ).run()
     csv_result = SimulationRunner.from_file(
         SCENARIO, sink=CsvOperationalDataSink(csv_directory, batch_size=7)
+    ).run()
+    both_result = SimulationRunner.from_file(
+        SCENARIO, sink=build_export_sink(ExportFormat.BOTH, both_directory)
     ).run()
     parquet_result = SimulationRunner.from_file(
         SCENARIO,
@@ -58,11 +63,16 @@ def test_smoke_scenario_is_equivalent_across_all_incremental_sinks(
 
     assert null_result.metrics_summary == csv_result.metrics_summary
     assert null_result.metrics_summary == parquet_result.metrics_summary
+    assert null_result.metrics_summary == both_result.metrics_summary
     assert inventory_snapshot(null_result) == inventory_snapshot(csv_result)
     assert inventory_snapshot(null_result) == inventory_snapshot(parquet_result)
+    assert inventory_snapshot(null_result) == inventory_snapshot(both_result)
     assert csv_counts(csv_directory) == parquet_counts(parquet_directory)
+    assert csv_counts(both_directory / "csv") == parquet_counts(
+        both_directory / "parquet"
+    )
     assert csv_counts(csv_directory)["metrics"] == 24
-    for result in (null_result, csv_result, parquet_result):
+    for result in (null_result, csv_result, parquet_result, both_result):
         assert all(
             result.state.collection(name).count() == 0 for name in TICK_COLLECTIONS
         )

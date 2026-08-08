@@ -10,6 +10,18 @@ OrderedRow = tuple[OperationalValue, ...]
 FlushRows = Callable[[DatasetDefinition, tuple[OrderedRow, ...]], None]
 
 
+def expected_output_paths(
+    output_directory: Path,
+    model: OperationalDataModel,
+    extension: str,
+) -> dict[str, Path]:
+    """Return every ODM-derived output path without modifying the filesystem."""
+    return {
+        dataset.name: output_directory / f"{dataset.name}.{extension}"
+        for dataset in model.datasets
+    }
+
+
 def prepare_output_files(
     output_directory: Path,
     model: OperationalDataModel,

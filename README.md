@@ -697,3 +697,36 @@ uses ODM-derived physical Arrow schemas and preserves typed Decimal, date, datet
 boolean, numeric, and string values. CSV uses the same dataset and column order but
 serializes Decimal and temporal values textually. Export buffering is bounded by
 the configured per-dataset batch size rather than the simulation horizon.
+
+### CLI and API export
+
+The existing command still runs without exporting when no export options are given.
+CSV, Parquet, and combined exports use the same incremental simulation run:
+
+```bash
+dataforge simulate smoke-test --format csv --output outputs/demo-csv
+dataforge simulate smoke-test --format parquet --output outputs/demo-parquet
+dataforge simulate smoke-test --format both --output outputs/demo-both
+```
+
+`--format` and `--output` must be provided together. Combined output uses
+`<output>/csv/` and `<output>/parquet/`; either existing target causes preflight to
+fail before simulation starts.
+
+The synchronous API writes to the server-local `outputs/` root and accepts only
+relative destinations below that root:
+
+```http
+POST /simulation/export
+Content-Type: application/json
+
+{
+  "scenario": "smoke-test",
+  "format": "both",
+  "output": "api-demo"
+}
+```
+
+The response contains the output location, dataset count, validation status, and
+the same official run summary used by runtime verification. It does not return a
+ZIP or binary download.

@@ -10,8 +10,11 @@ from typing import Annotated
 
 import typer
 
+from dataforge.export.files import ExportFormat, build_export_sink, export_dataset_count
 from dataforge.runtime.runner import SimulationRunner
 from dataforge.runtime.summary import build_simulation_summary
+from dataforge.scenario.loader import load_scenario
+from dataforge.scenario.resolution import resolve_scenario_path
 
 app = typer.Typer(help="Local development commands for DataForge Simulator.")
 
@@ -166,20 +169,31 @@ def finish(exit_code: int) -> None:
         raise typer.Exit(exit_code)
 
 
-def _resolve_scenario_path(argument: Path) -> Path:
-    """Resolve an explicit file first, then the conventional scenario directory."""
-    if argument.is_file():
-        return argument
-    candidate = Path("configs/scenarios") / f"{argument}.yaml"
-    return candidate if candidate.is_file() else argument
-
-
 @app.command()
-def simulate(scenario: Annotated[Path, typer.Argument(exists=False)]) -> None:
-    """Execute a complete scenario through the standard simulation runtime."""
-    scenario_path = _resolve_scenario_path(scenario)
+def simulate(
+    scenario: Annotated[Path, typer.Argument(exists=False)],
+    export_format: Annotated[
+        ExportFormat | None,
+        typer.Option("--format", help="Export format: csv, parquet, or both."),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="Explicit local export directory."),
+    ] = None,
+) -> None:
+    """Execute a complete scenario, optionally exporting incremental datasets."""
+    if (export_format is None) != (output is None):
+        raise typer.BadParameter("--format and --output must be provided together")
+
+    scenario_path = resolve_scenario_path(scenario)
     try:
-        result = SimulationRunner.from_file(scenario_path).run()
+        scenario_definition = load_scenario(scenario_path)
+        sink = (
+            build_export_sink(export_format, output)
+            if export_format is not None and output is not None
+            else None
+        )
+        result = SimulationRunner(scenario_definition, sink=sink).run()
         summary = build_simulation_summary(result)
     except Exception as error:
         typer.echo(f"Simulation failed: {error}", err=True)
@@ -217,6 +231,15 @@ def simulate(scenario: Annotated[Path, typer.Argument(exists=False)]) -> None:
     typer.echo(f"Out-of-stock events/signals: {summary.out_of_stock_signals}")
     typer.echo(f"Replenishments completed: {summary.replenishments_completed}")
     typer.echo(f"Units replenished: {summary.units_replenished}")
+    if export_format is not None and output is not None:
+        typer.echo("")
+        typer.echo("Export completed")
+        if export_format is ExportFormat.BOTH:
+            typer.echo("Formats: csv, parquet")
+        else:
+            typer.echo(f"Format: {export_format.value}")
+        typer.echo(f"Output: {output}")
+        typer.echo(f"Datasets: {export_dataset_count()}")
 
 
 @app.command()
