@@ -16,16 +16,3 @@ class DomainEvent:
         default_factory=lambda: datetime.now(UTC),
         init=False,
     )
-
-
-class EntityCreated(DomainEvent):
-    """Record the creation of one generic simulated entity."""
-
-    def __init__(self, entity_id: str, activity_factor: float) -> None:
-        super().__init__(
-            event_type="EntityCreated",
-            payload={
-                "entity_id": entity_id,
-                "activity_factor": activity_factor,
-            },
-        )
