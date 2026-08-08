@@ -1,0 +1,43 @@
+country:
+  code: CO
+  name: Colombia
+
+regions:
+  - id: andean
+    name: Andean
+  - id: caribbean
+    name: Caribbean
+  - id: pacific
+    name: Pacific
+
+administrative_areas:
+  - id: antioquia
+    name: Antioquia
+    type: department
+    region_id: andean
+  - id: cundinamarca
+    name: Cundinamarca
+    type: department
+    region_id: andean
+  - id: atlantico
+    name: Atlántico
+    type: department
+    region_id: caribbean
+  - id: valle-del-cauca
+    name: Valle del Cauca
+    type: department
+    region_id: pacific
+
+cities:
+  - id: medellin
+    name: Medellín
+    administrative_area_id: antioquia
+  - id: bogota
+    name: Bogotá
+    administrative_area_id: cundinamarca
+  - id: barranquilla
+    name: Barranquilla
+    administrative_area_id: atlantico
+  - id: cali
+    name: Cali
+    administrative_area_id: valle-del-cauca
