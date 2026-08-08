@@ -146,3 +146,9 @@
 - RunMetricsSummary must be computable incrementally; never retain MetricsContext history solely for final aggregation.
 - Physical exporters consume incremental operational output through the sink contract and must not require the full simulation history in memory.
 - A failed output write must never be followed by tick eviction or clock advancement.
+- Every physical exporter must consume OperationalDataSink incrementally.
+- Physical exporters must never require the full simulation history in memory.
+- Shared logic between exporters must remain format-independent.
+- Arrow schemas must always be derived from the Operational Data Model.
+- Decimal values must never be converted through float.
+- CSV and Parquet exporters must preserve identical logical datasets.
