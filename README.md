@@ -243,8 +243,6 @@ OpenAPI queda disponible en `http://127.0.0.1:8000/docs`.
 Endpoints actuales:
 
 - `GET /ping`: health check.
-- `POST /simulations/preview`: preview determinista de entidades genéricas.
-- `POST /simulation/verify`: ejecuta y valida un escenario local.
 - `POST /simulation/export`: ejecuta y exporta al filesystem del servidor.
 
 Ejemplo de exportación síncrona:

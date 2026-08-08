@@ -1,21 +1,10 @@
 """Tests for core domain value objects."""
 
 from datetime import UTC, date, datetime
-from uuid import UUID, uuid4
 
 import pytest
 
-from dataforge.core.value_objects import DateRange, Identifier, TimeRange
-
-
-def test_identifier_generates_uuid() -> None:
-    assert isinstance(Identifier().value, UUID)
-
-
-def test_identifier_preserves_supplied_uuid() -> None:
-    value = uuid4()
-
-    assert Identifier(value=value).value == value
+from dataforge.core.value_objects import DateRange, TimeRange
 
 
 def test_one_day_range_has_one_inclusive_day() -> None:
