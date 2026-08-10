@@ -1,8 +1,9 @@
 """Fail-fast validation of master state and per-tick engine outputs."""
 
 from collections import Counter
+from decimal import Decimal
 
-from dataforge.core.simulation_clock import SimulationClock
+from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.engines.customer_behavior.models import CustomerBehaviorContext
 from dataforge.engines.demand.models import DemandContext
@@ -87,7 +88,7 @@ class StateValidationEngine:
         transactions = self._tick(
             context, checked, "transaction_context", key, TransactionContext
         )
-        self._validate_transactions(transactions, behavior, pricing)
+        self._validate_transactions(transactions, behavior, pricing, temporal, master)
         checks += 1
         inventory_context = self._tick(
             context, checked, "inventory_context", key, InventoryContext
@@ -402,17 +403,31 @@ class StateValidationEngine:
         transactions: TransactionContext,
         behavior: CustomerBehaviorContext,
         pricing: PricingContext,
+        temporal: TemporalContext,
+        data: dict[str, tuple[object, ...]],
     ) -> None:
         intents = {item.id: item for item in behavior.intents}
         quotes = {item.intent_id: item for item in pricing.quotes}
         expected_baskets = {item.basket_id for item in behavior.intents}
         actual_baskets = [item.basket_id for item in transactions.transactions]
+        locations = self._index(data["locations"], Location, "locations")
+        tick_end = temporal.current_time + TICK_DELTAS[temporal.tick_unit]
         if (
             len(actual_baskets) != len(set(actual_baskets))
             or set(actual_baskets) != expected_baskets
         ):
             raise ValueError("Transactions must contain exactly one basket aggregate")
         for transaction in transactions.transactions:
+            location = locations.get(transaction.location_id)
+            if (
+                transaction.tick_index != temporal.tick_index
+                or not temporal.current_time <= transaction.occurred_at < tick_end
+                or location is None
+                or transaction.occurred_at.date() < location.opened_at
+            ):
+                raise ValueError(
+                    f"Transaction '{transaction.id}' has an invalid occurrence time"
+                )
             completed = 0
             rejected = 0
             for line in transaction.lines:
@@ -447,13 +462,18 @@ class StateValidationEngine:
                     line.applied_promotion_ids,
                 )
                 quote_money = (
-                    quote.unit_effective_price,
+                    quote.unit_base_price,
                     quote.gross_amount,
                     quote.discount_amount,
                     quote.net_amount,
                     quote.applied_promotion_ids,
                 )
-                if identity != expected_identity or money != quote_money:
+                if (
+                    identity != expected_identity
+                    or money != quote_money
+                    or line.gross_amount != line.unit_price * Decimal(line.quantity)
+                    or line.net_amount != line.gross_amount - line.discount_amount
+                ):
                     raise ValueError(
                         f"TransactionLine '{line.id}' is inconsistent with pricing"
                     )

@@ -89,7 +89,7 @@ class InventoryEngine:
                     stock_before=item.current_stock,
                     stock_after=updated.current_stock,
                     tick_index=clock.tick_index,
-                    occurred_at=temporal.current_time,
+                    occurred_at=transaction.occurred_at,
                 )
             )
 

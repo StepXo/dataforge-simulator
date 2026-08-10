@@ -1,11 +1,15 @@
 """Schedule and complete inventory replenishments across ticks."""
 
 from dataclasses import replace as replace_dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from pydantic import BaseModel, Field, model_validator
 
-from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
+from dataforge.core.simulation_clock import (
+    TICK_DELTAS,
+    SimulationClock,
+    random_times_within_tick,
+)
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.state.collection import StateCollection
 from dataforge.core.state.simulation_state import require_tick_context
@@ -81,8 +85,11 @@ class ReplenishmentEngine:
 
         completed: list[PendingReplenishment] = []
         movements: list[InventoryMovement] = []
-        completion_details: list[tuple[int, int]] = []
-        for item in due:
+        completion_details: list[tuple[int, int, datetime]] = []
+        completion_times = random_times_within_tick(
+            clock, context.seed, "replenishment-completion", len(due)
+        )
+        for item, occurred_at in zip(due, completion_times, strict=True):
             stock = inventory[item.inventory_id]
             quantity_received = stock.max_stock - stock.current_stock
             stock_before = stock.current_stock
@@ -105,7 +112,7 @@ class ReplenishmentEngine:
                         stock_before=stock_before,
                         stock_after=updated_stock.current_stock,
                         tick_index=clock.tick_index,
-                        occurred_at=temporal.current_time,
+                        occurred_at=occurred_at,
                     )
                 )
             completed_item = replace_dataclass(
@@ -113,7 +120,7 @@ class ReplenishmentEngine:
             )
             pending_collection.replace(item.id, completed_item)
             completed.append(completed_item)
-            completion_details.append((stock_before, stock.max_stock))
+            completion_details.append((stock_before, stock.max_stock, occurred_at))
 
         pending_inventory_ids = {
             item.inventory_id
@@ -167,7 +174,7 @@ class ReplenishmentEngine:
         for movement in result.movements:
             context.event_bus.publish(InventoryMovementCreated(movement))
         movements_by_inventory = {item.inventory_id: item for item in result.movements}
-        for item, (stock_before, stock_after) in zip(
+        for item, (stock_before, stock_after, occurred_at) in zip(
             result.completed, completion_details, strict=True
         ):
             context.event_bus.publish(
@@ -177,7 +184,7 @@ class ReplenishmentEngine:
                     stock_before,
                     stock_after,
                     clock.tick_index,
-                    temporal.current_time,
+                    occurred_at,
                 )
             )
         for item in result.scheduled:

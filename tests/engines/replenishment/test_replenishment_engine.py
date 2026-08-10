@@ -180,6 +180,8 @@ def test_due_replenishment_uses_current_stock_and_never_exceeds_max(
         assert movement.movement_type is InventoryMovementType.REPLENISHMENT
         assert movement.transaction_id is None and movement.basket_id is None
         assert movement.quantity == received
+        tick_start = NOW + timedelta(hours=1)
+        assert tick_start <= movement.occurred_at < tick_start + timedelta(hours=1)
     completed = context.state.collection("pending_replenishments").require(
         "replenishment-0-000001"
     )

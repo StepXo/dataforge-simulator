@@ -1,7 +1,9 @@
 """Deterministic simulation clock with configurable temporal ticks."""
 
 from datetime import datetime, timedelta
+from hashlib import sha256
 
+from dataforge.core.random_engine import RandomEngine
 from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import TimeRange
 
@@ -9,6 +11,22 @@ TICK_DELTAS = {
     TickUnit.DAY: timedelta(days=1),
     TickUnit.HOUR: timedelta(hours=1),
 }
+
+
+def random_times_within_tick(
+    clock: "SimulationClock", seed: int, namespace: str, count: int
+) -> tuple[datetime, ...]:
+    """Return deterministic, chronological instants inside the current tick."""
+    if count < 0:
+        raise ValueError("count must be non-negative")
+    tick_duration = TICK_DELTAS[clock.tick_unit]
+    microseconds = tick_duration // timedelta(microseconds=1)
+    digest = sha256(f"{seed}:{namespace}:{clock.tick_index}".encode()).digest()
+    random_engine = RandomEngine(int.from_bytes(digest[:8], "big"))
+    offsets = sorted(random_engine.randint(0, microseconds - 1) for _ in range(count))
+    return tuple(
+        clock.current_time + timedelta(microseconds=offset) for offset in offsets
+    )
 
 
 class SimulationClock:
