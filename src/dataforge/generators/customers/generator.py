@@ -63,8 +63,15 @@ class CustomerGenerator:
         customers = context.state.collection("customers")
 
         region_ids = {region.id for region in regions}
+        serviceable_cities = tuple(
+            city
+            for city in cities
+            if any(location.city_id == city.id for location in locations)
+        )
+        if not serviceable_cities:
+            raise ValueError("No city has an available location")
         for sequence in range(1, self._config.count + 1):
-            city = context.random_engine.choice(cities)
+            city = context.random_engine.choice(serviceable_cities)
             if city.region_id not in region_ids:
                 raise ValueError(f"City references unknown region: {city.id}")
             location = self._preferred_location(context, city, locations)
@@ -118,13 +125,7 @@ class CustomerGenerator:
     ) -> Location:
         candidates = [location for location in locations if location.city_id == city.id]
         if not candidates:
-            candidates = [
-                location
-                for location in locations
-                if location.region_id == city.region_id
-            ]
-        if not candidates:
-            raise ValueError(f"No location available for city region: {city.region_id}")
+            raise ValueError(f"No location available for city: {city.id}")
         return context.random_engine.choice(candidates)
 
     def _profile(self, context: SimulationContext) -> CustomerActivityProfile:

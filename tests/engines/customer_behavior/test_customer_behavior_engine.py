@@ -20,6 +20,7 @@ from dataforge.engines.customer_behavior.engine import (
     _build_intents,
     _customer_weight,
     _IntentDraft,
+    _is_temporally_available,
     _promotion_propensity,
     _select_channel,
     activity_probability,
@@ -406,6 +407,25 @@ def test_monthly_rate_probability_scales_with_tick_duration_and_rate() -> None:
     assert activity_probability(10, hour) < activity_probability(20, hour)
 
 
+def test_hourly_availability_observations_match_monthly_rate_scale() -> None:
+    clock = SimulationClock(
+        TimeRange(datetime(2024, 1, 1), datetime(2024, 1, 31, 23)),
+        TickUnit.HOUR,
+    )
+    random_engine = RandomEngine(42)
+    shoppers = tuple(
+        customer(f"customer-{index:06d}", frequency=20) for index in range(200)
+    )
+    observed = 0
+    while not clock.is_finished:
+        observed += sum(
+            _is_temporally_available(shopper, clock, random_engine)
+            for shopper in shoppers
+        )
+        clock.advance()
+    assert observed / len(shoppers) == pytest.approx(20, rel=0.10)
+
+
 def test_customer_creates_at_most_one_basket_and_excess_is_unassigned() -> None:
     context, clock, _ = runtime(customers=(customer(),), demand_units=20)
     CustomerBehaviorEngine(
@@ -416,6 +436,44 @@ def test_customer_creates_at_most_one_basket_and_excess_is_unassigned() -> None:
     assert len({intent.basket_id for intent in result.intents}) <= 1
     assert result.total_requested_units <= 4
     assert result.total_requested_units + result.unassigned_demand_units == 20
+
+
+def test_available_customer_can_receive_multiple_products_in_one_basket() -> None:
+    engine = CustomerBehaviorEngine()
+    shopper = customer()
+    place = location()
+    promotions = PromotionContext(0, NOW, ())
+    drafts: list[_IntentDraft] = []
+    baskets: dict[str, tuple[str, PreferredChannel]] = {}
+    assigned_products: set[tuple[str, str]] = set()
+    first = product()
+    second = Product(
+        "product-b",
+        "B",
+        "category-a",
+        "COP",
+        Decimal("80"),
+        Decimal("40"),
+        Decimal("0.5000"),
+        1.0,
+        True,
+    )
+    for item in (first, second):
+        assigned = engine._assign_record(
+            DemandRecord(place.id, item.id, 1.0, 1),
+            (shopper,),
+            place,
+            item,
+            promotions,
+            RandomEngine(42),
+            drafts,
+            baskets,
+            assigned_products,
+        )
+        assert assigned == 1
+    intents = _build_intents(drafts, 0, 0)
+    assert len(intents) == 2
+    assert len({intent.basket_id for intent in intents}) == 1
 
 
 @pytest.mark.parametrize(

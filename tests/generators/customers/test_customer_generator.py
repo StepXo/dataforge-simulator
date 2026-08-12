@@ -205,7 +205,7 @@ def test_activity_profiles_accept_arbitrary_positive_rates(
     )
 
 
-def test_preferred_location_falls_back_within_region() -> None:
+def test_customers_are_generated_only_in_cities_with_locations() -> None:
     ctx, _ = context()
     bootstrap_geography(ctx)
     cities = [
@@ -218,17 +218,17 @@ def test_preferred_location_falls_back_within_region() -> None:
         for value in ctx.state.collection("locations").all()
         if isinstance(value, Location)
     ]
-    city_without_location = next(
-        city
+    locations_by_id = {location.id: location for location in locations}
+    serviceable_city_ids = {
+        city.id
         for city in cities
-        if not any(location.city_id == city.id for location in locations)
-    )
-    ctx.state.collection("cities").clear()
-    ctx.state.collection("cities").add(city_without_location.id, city_without_location)
-    CustomerGenerator(CustomerGenerationConfig(count=20)).generate(ctx)
+        if any(location.city_id == city.id for location in locations)
+    }
+    CustomerGenerator(CustomerGenerationConfig(count=100)).generate(ctx)
     assert all(
         isinstance(value, Customer)
-        and value.home_region_id == city_without_location.region_id
+        and value.home_city_id in serviceable_city_ids
+        and locations_by_id[value.preferred_location_id].city_id == value.home_city_id
         for value in ctx.state.collection("customers").all()
     )
 

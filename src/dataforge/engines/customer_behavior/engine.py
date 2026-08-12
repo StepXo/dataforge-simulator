@@ -119,7 +119,8 @@ class CustomerBehaviorEngine:
             for customer in customers
             if _is_temporally_available(customer, clock, context.random_engine)
         }
-        used_customer_ids: set[str] = set()
+        basket_assignments: dict[str, tuple[str, PreferredChannel]] = {}
+        assigned_products: set[tuple[str, str]] = set()
         for record in demand.demands:
             location = locations.get(record.location_id)
             product = products.get(record.product_id)
@@ -138,7 +139,10 @@ class CustomerBehaviorEngine:
                 customer
                 for customer in customers
                 if customer.id in available_customer_ids
-                and customer.id not in used_customer_ids
+                and (
+                    customer.id not in basket_assignments
+                    or basket_assignments[customer.id][0] == location.id
+                )
                 and _is_eligible(customer, location, temporal)
             )
             assigned = self._assign_record(
@@ -149,7 +153,8 @@ class CustomerBehaviorEngine:
                 promotions,
                 context.random_engine,
                 drafts,
-                used_customer_ids,
+                basket_assignments,
+                assigned_products,
             )
             unassigned += record.requested_units - assigned
 
@@ -182,14 +187,28 @@ class CustomerBehaviorEngine:
         promotions: PromotionContext,
         random_engine: RandomEngine,
         drafts: list[_IntentDraft],
-        used_customer_ids: set[str],
+        basket_assignments: dict[str, tuple[str, PreferredChannel]],
+        assigned_products: set[tuple[str, str]],
     ) -> int:
-        candidates = list(customers)
-        if not candidates:
+        if not customers:
             return 0
 
         assigned = 0
-        while assigned < record.requested_units and candidates:
+        while assigned < record.requested_units:
+            unused = [
+                customer
+                for customer in customers
+                if customer.id not in basket_assignments
+                and (customer.id, product.id) not in assigned_products
+            ]
+            candidates = unused or [
+                customer
+                for customer in customers
+                if basket_assignments[customer.id][0] == location.id
+                and (customer.id, product.id) not in assigned_products
+            ]
+            if not candidates:
+                break
             weights = tuple(
                 _customer_weight(customer, location, product, promotions, self._config)
                 for customer in candidates
@@ -197,16 +216,20 @@ class CustomerBehaviorEngine:
             if sum(weights) <= 0:
                 break
             customer = random_engine.weighted_choice(candidates, weights)
-            candidates.remove(customer)
-            used_customer_ids.add(customer.id)
-            channel = _select_channel(
-                customer,
-                location,
-                product,
-                promotions,
-                self._config,
-                random_engine,
-            )
+            assignment = basket_assignments.get(customer.id)
+            if assignment is None:
+                channel = _select_channel(
+                    customer,
+                    location,
+                    product,
+                    promotions,
+                    self._config,
+                    random_engine,
+                )
+                basket_assignments[customer.id] = (location.id, channel)
+            else:
+                channel = assignment[1]
+            assigned_products.add((customer.id, product.id))
             quantity = random_engine.randint(
                 1,
                 min(
