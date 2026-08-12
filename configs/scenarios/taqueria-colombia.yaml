@@ -15,16 +15,18 @@ locations:
   max_per_region: 3
   min_capacity: 50
   max_capacity: 250
-  min_activity_factor: 0.50
-  max_activity_factor: 1.50
+  min_activity_factor: 0.40
+  max_activity_factor: 2.00
 
 customers:
   count: 1000
-  mobile_preference_probability: 0.45
+  mobile_preference_probability: 0.35
   inactive_probability: 0.10
   activity_profiles:
-    - {name: baseline, weight: 0.70, monthly_rate_mean: 4, variation: 0.20, segment: regular}
-    - {name: elevated, weight: 0.30, monthly_rate_mean: 8, variation: 0.20, segment: frequent}
+    - {name: low, weight: 0.20, monthly_rate_mean: 10, variation: 0.20, segment: occasional}
+    - {name: medium, weight: 0.30, monthly_rate_mean: 15, variation: 0.20, segment: regular}
+    - {name: high, weight: 0.35, monthly_rate_mean: 20, variation: 0.20, segment: regular}
+    - {name: very_high, weight: 0.15, monthly_rate_mean: 35, variation: 0.20, segment: frequent}
 
 inventory:
   min_initial_stock: 50
@@ -48,8 +50,8 @@ promotions:
   category_target_probability: 0.25
 
 demand:
-  base_demand_min: 0.10
-  base_demand_max: 3.00
+  base_demand_min: 0.15
+  base_demand_max: 1.20
   weekend_factor: 1.20
   mid_month_factor: 1.10
   month_end_factor: 1.10
@@ -62,5 +64,5 @@ demand:
   max_requested_units_per_item: 1000
 
 replenishment:
-  min_lead_time_ticks: 1
-  max_lead_time_ticks: 3
+  min_lead_time_days: 1
+  max_lead_time_days: 3
