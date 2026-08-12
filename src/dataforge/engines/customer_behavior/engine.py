@@ -16,7 +16,7 @@ from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
     PurchaseIntent,
 )
-from dataforge.engines.demand.models import DemandContext, DemandRecord
+from dataforge.engines.demand.models import DemandContext
 from dataforge.engines.promotion.matching import promotion_matches_target
 from dataforge.engines.promotion.models import PromotionContext
 from dataforge.engines.time.models import TemporalContext
@@ -44,6 +44,13 @@ class _IntentDraft:
     product_id: str
     channel: PreferredChannel
     requested_quantity: int
+
+
+@dataclass(slots=True)
+class _DemandPool:
+    location: Location
+    product: Product
+    remaining: int
 
 
 def _build_intents(
@@ -113,7 +120,9 @@ class CustomerBehaviorEngine:
         )
 
         drafts: list[_IntentDraft] = []
-        unassigned = 0
+        unassigned, pools = self._demand_pools(
+            demand, locations, products, assortment, temporal
+        )
         available_customer_ids = {
             customer.id
             for customer in customers
@@ -121,42 +130,31 @@ class CustomerBehaviorEngine:
         }
         basket_assignments: dict[str, tuple[str, PreferredChannel]] = {}
         assigned_products: set[tuple[str, str]] = set()
-        for record in demand.demands:
-            location = locations.get(record.location_id)
-            product = products.get(record.product_id)
-            if location is None or product is None:
-                raise ValueError(
-                    "Demand references unknown location or product: "
-                    f"{record.location_id}/{record.product_id}"
-                )
-            if (
-                location.id,
-                product.id,
-            ) not in assortment or location.opened_at > temporal.current_time.date():
-                unassigned += record.requested_units
-                continue
-            eligible = tuple(
-                customer
-                for customer in customers
-                if customer.id in available_customer_ids
-                and (
-                    customer.id not in basket_assignments
-                    or basket_assignments[customer.id][0] == location.id
-                )
-                and _is_eligible(customer, location, temporal)
-            )
-            assigned = self._assign_record(
-                record,
-                eligible,
-                location,
-                product,
-                promotions,
-                context.random_engine,
-                drafts,
-                basket_assignments,
-                assigned_products,
-            )
-            unassigned += record.requested_units - assigned
+        available = [
+            customer
+            for customer in customers
+            if customer.id in available_customer_ids
+            and customer.registered_at <= temporal.current_time.date()
+        ]
+        self._allocate_new_baskets(
+            available,
+            pools,
+            promotions,
+            context.random_engine,
+            drafts,
+            basket_assignments,
+            assigned_products,
+        )
+        self._fill_existing_baskets(
+            available,
+            pools,
+            promotions,
+            context.random_engine,
+            drafts,
+            basket_assignments,
+            assigned_products,
+        )
+        unassigned += sum(pool.remaining for pool in pools)
 
         intent_values = _build_intents(drafts, clock.tick_index, demand.tick_index)
         behavior = CustomerBehaviorContext(
@@ -178,76 +176,149 @@ class CustomerBehaviorEngine:
         collection.add(f"tick-{clock.tick_index}", behavior)
         context.event_bus.publish(CustomerBehaviorContextGenerated(behavior))
 
-    def _assign_record(
+    def _demand_pools(
         self,
-        record: DemandRecord,
-        customers: tuple[Customer, ...],
-        location: Location,
-        product: Product,
+        demand: DemandContext,
+        locations: dict[str, Location],
+        products: dict[str, Product],
+        assortment: dict[tuple[str, str], InventoryItem],
+        temporal: TemporalContext,
+    ) -> tuple[int, list[_DemandPool]]:
+        invalid_units = 0
+        pools: list[_DemandPool] = []
+        for record in sorted(
+            demand.demands, key=lambda item: (item.location_id, item.product_id)
+        ):
+            location = locations.get(record.location_id)
+            product = products.get(record.product_id)
+            if location is None or product is None:
+                raise ValueError(
+                    "Demand references unknown location or product: "
+                    f"{record.location_id}/{record.product_id}"
+                )
+            if (
+                location.id,
+                product.id,
+            ) not in assortment or location.opened_at > temporal.current_time.date():
+                invalid_units += record.requested_units
+            elif record.requested_units:
+                pools.append(_DemandPool(location, product, record.requested_units))
+        return invalid_units, pools
+
+    def _allocate_new_baskets(
+        self,
+        customers: list[Customer],
+        pools: list[_DemandPool],
         promotions: PromotionContext,
         random_engine: RandomEngine,
         drafts: list[_IntentDraft],
-        basket_assignments: dict[str, tuple[str, PreferredChannel]],
+        baskets: dict[str, tuple[str, PreferredChannel]],
         assigned_products: set[tuple[str, str]],
-    ) -> int:
-        if not customers:
-            return 0
-
-        assigned = 0
-        while assigned < record.requested_units:
-            unused = [
+    ) -> None:
+        remaining_customers = list(customers)
+        while remaining_customers:
+            eligible = [
                 customer
-                for customer in customers
-                if customer.id not in basket_assignments
-                and (customer.id, product.id) not in assigned_products
+                for customer in remaining_customers
+                if _candidate_locations(customer, pools)
             ]
-            candidates = unused or [
-                customer
-                for customer in customers
-                if basket_assignments[customer.id][0] == location.id
-                and (customer.id, product.id) not in assigned_products
-            ]
-            if not candidates:
-                break
-            weights = tuple(
-                _customer_weight(customer, location, product, promotions, self._config)
-                for customer in candidates
+            if not eligible:
+                return
+            customer = random_engine.weighted_choice(
+                eligible, tuple(item.activity_factor for item in eligible)
             )
-            if sum(weights) <= 0:
-                break
-            customer = random_engine.weighted_choice(candidates, weights)
-            assignment = basket_assignments.get(customer.id)
-            if assignment is None:
-                channel = _select_channel(
-                    customer,
-                    location,
-                    product,
-                    promotions,
-                    self._config,
-                    random_engine,
-                )
-                basket_assignments[customer.id] = (location.id, channel)
-            else:
-                channel = assignment[1]
-            assigned_products.add((customer.id, product.id))
-            quantity = random_engine.randint(
-                1,
-                min(
-                    self._config.max_units_per_intent,
-                    record.requested_units - assigned,
-                ),
-            )
-            _append_or_consolidate(
-                drafts,
+            remaining_customers.remove(customer)
+            location = _choose_location(customer, pools, self._config, random_engine)
+            baskets[customer.id] = (location.id, customer.preferred_channel)
+            self._assign_line(
                 customer,
                 location,
-                product,
-                channel,
-                quantity,
-                self._config.max_units_per_intent,
+                pools,
+                promotions,
+                random_engine,
+                drafts,
+                assigned_products,
             )
-            assigned += quantity
-        return assigned
+
+    def _fill_existing_baskets(
+        self,
+        customers: list[Customer],
+        pools: list[_DemandPool],
+        promotions: PromotionContext,
+        random_engine: RandomEngine,
+        drafts: list[_IntentDraft],
+        baskets: dict[str, tuple[str, PreferredChannel]],
+        assigned_products: set[tuple[str, str]],
+    ) -> None:
+        by_id = {customer.id: customer for customer in customers}
+        progress = True
+        while progress:
+            progress = False
+            for customer_id, (location_id, _) in baskets.items():
+                customer = by_id[customer_id]
+                candidates = [
+                    pool
+                    for pool in pools
+                    if pool.location.id == location_id
+                    and pool.remaining > 0
+                    and (customer.id, pool.product.id) not in assigned_products
+                ]
+                if candidates:
+                    self._assign_line(
+                        customer,
+                        candidates[0].location,
+                        pools,
+                        promotions,
+                        random_engine,
+                        drafts,
+                        assigned_products,
+                    )
+                    progress = True
+
+    def _assign_line(
+        self,
+        customer: Customer,
+        location: Location,
+        pools: list[_DemandPool],
+        promotions: PromotionContext,
+        random_engine: RandomEngine,
+        drafts: list[_IntentDraft],
+        assigned_products: set[tuple[str, str]],
+    ) -> None:
+        candidates = [
+            pool
+            for pool in pools
+            if pool.location.id == location.id
+            and pool.remaining > 0
+            and (customer.id, pool.product.id) not in assigned_products
+        ]
+        weights = tuple(
+            pool.remaining
+            * _promotion_propensity(
+                customer,
+                location,
+                pool.product,
+                promotions,
+                PromotionChannel.ALL,
+                self._config,
+            )
+            for pool in candidates
+        )
+        pool = random_engine.weighted_choice(candidates, weights)
+        quantity = random_engine.randint(
+            1, min(self._config.max_units_per_intent, pool.remaining)
+        )
+        pool.remaining -= quantity
+        assigned_products.add((customer.id, pool.product.id))
+        drafts.append(
+            _IntentDraft(
+                customer.id,
+                location.id,
+                pool.product.id,
+                customer.preferred_channel,
+                quantity,
+            )
+        )
 
     def _typed_collection[T](
         self, context: SimulationContext, name: str, expected_type: type[T]
@@ -278,6 +349,45 @@ def _is_eligible(
         and customer.home_city_id == location.city_id
         and customer.home_region_id == location.region_id
     )
+
+
+def _candidate_locations(
+    customer: Customer, pools: list[_DemandPool]
+) -> tuple[Location, ...]:
+    locations: dict[str, Location] = {}
+    for pool in pools:
+        if (
+            pool.remaining > 0
+            and pool.location.city_id == customer.home_city_id
+            and pool.location.region_id == customer.home_region_id
+        ):
+            locations[pool.location.id] = pool.location
+    return tuple(locations.values())
+
+
+def _choose_location(
+    customer: Customer,
+    pools: list[_DemandPool],
+    config: CustomerBehaviorEngineConfig,
+    random_engine: RandomEngine,
+) -> Location:
+    locations = _candidate_locations(customer, pools)
+    demand_by_location = {
+        location.id: sum(
+            pool.remaining for pool in pools if pool.location.id == location.id
+        )
+        for location in locations
+    }
+    weights = tuple(
+        demand_by_location[location.id]
+        * (
+            config.preferred_location_bonus
+            if customer.preferred_location_id == location.id
+            else 1.0
+        )
+        for location in locations
+    )
+    return random_engine.weighted_choice(locations, weights)
 
 
 def _customer_weight(

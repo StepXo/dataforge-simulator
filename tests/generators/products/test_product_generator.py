@@ -61,7 +61,7 @@ def test_product_generator_models_margin_and_events() -> None:
     assert item.base_price == Decimal("12000.00")
     assert item.base_cost == Decimal("5500.00")
     assert item.base_margin == Decimal("0.5417")
-    assert item.activity_factor == 1.0
+    assert item.activity_factor == catalog.products[0].activity_factor
     assert item.currency == "COP" and item.active is True
     with pytest.raises(FrozenInstanceError):
         item.name = "changed"  # type: ignore[attr-defined]

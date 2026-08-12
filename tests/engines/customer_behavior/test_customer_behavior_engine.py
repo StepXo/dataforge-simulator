@@ -1,5 +1,6 @@
 """Tests for customer behavior models, weights, and execution."""
 
+from collections import Counter
 from dataclasses import FrozenInstanceError
 from datetime import date, datetime
 from decimal import Decimal
@@ -19,6 +20,7 @@ from dataforge.engines.customer_behavior.engine import (
     CustomerBehaviorEngineConfig,
     _build_intents,
     _customer_weight,
+    _DemandPool,
     _IntentDraft,
     _is_temporally_available,
     _promotion_propensity,
@@ -444,7 +446,6 @@ def test_available_customer_can_receive_multiple_products_in_one_basket() -> Non
     place = location()
     promotions = PromotionContext(0, NOW, ())
     drafts: list[_IntentDraft] = []
-    baskets: dict[str, tuple[str, PreferredChannel]] = {}
     assigned_products: set[tuple[str, str]] = set()
     first = product()
     second = Product(
@@ -458,22 +459,86 @@ def test_available_customer_can_receive_multiple_products_in_one_basket() -> Non
         1.0,
         True,
     )
-    for item in (first, second):
-        assigned = engine._assign_record(
-            DemandRecord(place.id, item.id, 1.0, 1),
-            (shopper,),
-            place,
-            item,
-            promotions,
-            RandomEngine(42),
-            drafts,
-            baskets,
-            assigned_products,
-        )
-        assert assigned == 1
+    pools = [_DemandPool(place, first, 1), _DemandPool(place, second, 1)]
+    baskets: dict[str, tuple[str, PreferredChannel]] = {}
+    engine._allocate_new_baskets(
+        [shopper],
+        pools,
+        promotions,
+        RandomEngine(42),
+        drafts,
+        baskets,
+        assigned_products,
+    )
+    engine._fill_existing_baskets(
+        [shopper],
+        pools,
+        promotions,
+        RandomEngine(42),
+        drafts,
+        baskets,
+        assigned_products,
+    )
     intents = _build_intents(drafts, 0, 0)
     assert len(intents) == 2
     assert len({intent.basket_id for intent in intents}) == 1
+
+
+def _two_location_assignment(
+    demand_order: tuple[str, str], seed: int = 42
+) -> CustomerBehaviorContext:
+    first = location("location-a", city="city-a")
+    second = location("location-b", city="city-a")
+    shoppers = tuple(
+        customer(
+            f"customer-{index:06d}",
+            preferred_location="location-a" if index % 2 else "location-b",
+        )
+        for index in range(1, 41)
+    )
+    inventory = (
+        InventoryItem("inventory-a", first.id, "product-a", 0, 0, 100, True),
+        InventoryItem("inventory-b", second.id, "product-a", 0, 0, 100, True),
+    )
+    context, clock, _ = runtime(
+        seed=seed,
+        customers=shoppers,
+        item_location=first,
+        extra_locations=(second,),
+        inventory_items=inventory,
+        demand_units=0,
+    )
+    demand_collection = context.state.collection("demand_context")
+    demand_collection.clear()
+    records = tuple(
+        DemandRecord(location_id, "product-a", 20.0, 20) for location_id in demand_order
+    )
+    demand_collection.add("tick-0", DemandContext(0, NOW, records, 40))
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    return result
+
+
+def test_location_assignment_is_independent_of_demand_record_order() -> None:
+    forward = _two_location_assignment(("location-a", "location-b"))
+    reversed_result = _two_location_assignment(("location-b", "location-a"))
+    assert forward == reversed_result
+    counts = Counter(intent.location_id for intent in forward.intents)
+    assert counts["location-a"] > 0
+    assert counts["location-b"] > 0
+
+
+def test_preferred_location_influences_competitive_assignment() -> None:
+    result = _two_location_assignment(("location-a", "location-b"))
+    preferred = {
+        f"customer-{index:06d}": "location-a" if index % 2 else "location-b"
+        for index in range(1, 41)
+    }
+    matching = sum(
+        preferred[intent.customer_id] == intent.location_id for intent in result.intents
+    )
+    assert matching > len(result.intents) / 2
 
 
 @pytest.mark.parametrize(
