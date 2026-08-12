@@ -22,6 +22,7 @@ from dataforge.engines.customer_behavior.engine import (
     _IntentDraft,
     _promotion_propensity,
     _select_channel,
+    activity_probability,
 )
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
@@ -86,7 +87,7 @@ def customer(
     home_city: str = "city-a",
     preferred_location: str = "location-a",
     preferred_channel: PreferredChannel = PreferredChannel.MOBILE,
-    frequency: float = 2.0,
+    frequency: float = 1_000_000.0,
     activity: float = 1.0,
     sensitivity: float = 1.0,
 ) -> Customer:
@@ -180,9 +181,6 @@ def runtime(
     "field,value",
     [
         ("max_units_per_intent", 0),
-        ("occasional_activity_factor", -0.1),
-        ("regular_activity_factor", -0.1),
-        ("frequent_activity_factor", -0.1),
         ("preferred_location_bonus", -0.1),
         ("preferred_channel_bonus", -0.1),
         ("promotion_sensitivity_weight", -0.1),
@@ -251,7 +249,7 @@ def test_basket_grouping_is_deterministic_and_uses_customer_location_channel() -
     assert _build_intents(drafts, 11, 11)[0].basket_id == "basket-11-000001"
 
 
-def test_customer_weight_uses_segment_frequency_activity_and_location() -> None:
+def test_customer_weight_uses_propensity_not_segment_or_monthly_rate() -> None:
     config = CustomerBehaviorEngineConfig()
     place = location()
     item = product()
@@ -271,10 +269,10 @@ def test_customer_weight_uses_segment_frequency_activity_and_location() -> None:
         empty_promotions,
         config,
     )
-    assert occasional < regular < frequent
+    assert occasional == regular == frequent
     assert _customer_weight(
         customer(frequency=4.0), place, item, empty_promotions, config
-    ) == pytest.approx(regular * 2)
+    ) == pytest.approx(regular)
     assert _customer_weight(
         customer(activity=1.5), place, item, empty_promotions, config
     ) == pytest.approx(regular * 1.5)
@@ -355,7 +353,7 @@ def test_preferred_channel_has_greater_selection_weight() -> None:
     "candidate",
     [
         customer(active=False),
-        customer(segment=CustomerSegment.INACTIVE),
+        customer(frequency=0),
         customer(registered_at=date(2026, 8, 16)),
         customer(region="region-b"),
     ],
@@ -395,8 +393,29 @@ def test_assignment_conserves_units_limits_quantities_and_publishes_after_save()
     assert observed == [True]
     event = store.all_events()[-1]
     assert event.event_type == "CustomerBehaviorContextGenerated"
-    assert event.payload["total_requested_units"] == 11
-    assert event.payload["intents"][0]["basket_id"].startswith("basket-0-")
+    assert event.payload["total_requested_units"] <= 3
+    if event.payload["intents"]:
+        assert event.payload["intents"][0]["basket_id"].startswith("basket-0-")
+
+
+def test_monthly_rate_probability_scales_with_tick_duration_and_rate() -> None:
+    hour = SimulationClock(TimeRange(NOW, NOW), TickUnit.HOUR)
+    day = SimulationClock(TimeRange(NOW, NOW), TickUnit.DAY)
+    assert activity_probability(0, hour) == 0
+    assert activity_probability(20, hour) < activity_probability(20, day)
+    assert activity_probability(10, hour) < activity_probability(20, hour)
+
+
+def test_customer_creates_at_most_one_basket_and_excess_is_unassigned() -> None:
+    context, clock, _ = runtime(customers=(customer(),), demand_units=20)
+    CustomerBehaviorEngine(
+        CustomerBehaviorEngineConfig(max_units_per_intent=4)
+    ).execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert len({intent.basket_id for intent in result.intents}) <= 1
+    assert result.total_requested_units <= 4
+    assert result.total_requested_units + result.unassigned_demand_units == 20
 
 
 @pytest.mark.parametrize(
@@ -447,8 +466,8 @@ def test_out_of_stock_assortment_still_allows_intent() -> None:
     CustomerBehaviorEngine().execute(context, clock)
     result = context.state.collection("customer_behavior_context").require("tick-0")
     assert isinstance(result, CustomerBehaviorContext)
-    assert result.total_requested_units == 4
-    assert result.unassigned_demand_units == 0
+    assert result.total_requested_units > 0
+    assert result.total_requested_units + result.unassigned_demand_units == 4
     assert (
         context.state.collection("inventory").require("inventory-a").current_stock == 0
     )

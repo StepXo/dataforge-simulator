@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 from typing import Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from dataforge.bootstrap.collections import prepare_empty_collections
 from dataforge.core.simulation_context import SimulationContext
@@ -17,6 +17,8 @@ from dataforge.generators.geography.models import City, Location, Region
 
 
 class CustomerActivityProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(min_length=1)
     weight: float = Field(gt=0)
     monthly_rate_mean: float = Field(gt=0)
@@ -25,6 +27,8 @@ class CustomerActivityProfile(BaseModel):
 
 
 class CustomerGenerationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     count: int = Field(default=1000, ge=1)
     activity_profiles: tuple[CustomerActivityProfile, ...] = (
         CustomerActivityProfile(
@@ -41,7 +45,10 @@ class CustomerGenerationConfig(BaseModel):
         names = [profile.name for profile in self.activity_profiles]
         if len(names) != len(set(names)):
             raise ValueError("activity profile names must be unique")
-        if any(profile.segment is CustomerSegment.INACTIVE for profile in self.activity_profiles):
+        if any(
+            profile.segment is CustomerSegment.INACTIVE
+            for profile in self.activity_profiles
+        ):
             raise ValueError("active profiles cannot use the inactive segment")
         return self
 
@@ -62,8 +69,7 @@ class CustomerGenerator:
                 raise ValueError(f"City references unknown region: {city.id}")
             location = self._preferred_location(context, city, locations)
             active = (
-                context.random_engine.uniform(0, 1)
-                >= self._config.inactive_probability
+                context.random_engine.uniform(0, 1) >= self._config.inactive_probability
             )
             profile = self._profile(context) if active else None
             customer = Customer(

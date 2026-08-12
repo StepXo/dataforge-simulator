@@ -317,6 +317,7 @@ class StateValidationEngine:
         locations = self._index(data["locations"], Location, "locations")
         products = self._index(data["products"], Product, "products")
         baskets: dict[str, tuple[str, str, object, int]] = {}
+        customer_baskets: dict[str, str] = {}
         for intent in behavior.intents:
             customer = customers.get(intent.customer_id)
             location = locations.get(intent.location_id)
@@ -327,6 +328,9 @@ class StateValidationEngine:
                 or intent.product_id not in products
                 or stock is None
                 or not stock.active
+                or not customer.active
+                or customer.purchase_frequency <= 0
+                or customer.registered_at > temporal.current_time.date()
             ):
                 raise ValueError(
                     f"PurchaseIntent '{intent.id}' references invalid business data"
@@ -349,6 +353,13 @@ class StateValidationEngine:
                     f"Basket '{intent.basket_id}' contains inconsistent intents"
                 )
             baskets[intent.basket_id] = identity
+            previous_basket = customer_baskets.setdefault(
+                intent.customer_id, intent.basket_id
+            )
+            if previous_basket != intent.basket_id:
+                raise ValueError(
+                    f"Customer '{intent.customer_id}' has multiple baskets in tick"
+                )
 
     def _validate_pricing(
         self, pricing: PricingContext, behavior: CustomerBehaviorContext

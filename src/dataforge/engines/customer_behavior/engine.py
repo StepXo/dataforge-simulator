@@ -1,11 +1,13 @@
 """Engine that assigns aggregate demand to concrete customers."""
 
 from dataclasses import dataclass
+from datetime import timedelta
+from math import exp
 
 from pydantic import BaseModel, Field
 
 from dataforge.core.random_engine import RandomEngine
-from dataforge.core.simulation_clock import SimulationClock
+from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.state.simulation_state import require_tick_context
 from dataforge.core.value_objects import build_tick_sequence_id
@@ -18,11 +20,7 @@ from dataforge.engines.demand.models import DemandContext, DemandRecord
 from dataforge.engines.promotion.matching import promotion_matches_target
 from dataforge.engines.promotion.models import PromotionContext
 from dataforge.engines.time.models import TemporalContext
-from dataforge.generators.customers.models import (
-    Customer,
-    CustomerSegment,
-    PreferredChannel,
-)
+from dataforge.generators.customers.models import Customer, PreferredChannel
 from dataforge.generators.geography.models import Location
 from dataforge.generators.inventory.assortment import index_active_assortment
 from dataforge.generators.inventory.models import InventoryItem
@@ -34,9 +32,6 @@ CUSTOMER_BEHAVIOR_CONTEXT_COLLECTION = "customer_behavior_context"
 
 class CustomerBehaviorEngineConfig(BaseModel):
     max_units_per_intent: int = Field(default=4, ge=1)
-    occasional_activity_factor: float = Field(default=0.60, ge=0)
-    regular_activity_factor: float = Field(default=1.00, ge=0)
-    frequent_activity_factor: float = Field(default=1.40, ge=0)
     preferred_location_bonus: float = Field(default=1.50, ge=0)
     preferred_channel_bonus: float = Field(default=1.30, ge=0)
     promotion_sensitivity_weight: float = Field(default=0.50, ge=0)
@@ -119,6 +114,12 @@ class CustomerBehaviorEngine:
 
         drafts: list[_IntentDraft] = []
         unassigned = 0
+        available_customer_ids = {
+            customer.id
+            for customer in customers
+            if _is_temporally_available(customer, clock, context.random_engine)
+        }
+        used_customer_ids: set[str] = set()
         for record in demand.demands:
             location = locations.get(record.location_id)
             product = products.get(record.product_id)
@@ -136,7 +137,9 @@ class CustomerBehaviorEngine:
             eligible = tuple(
                 customer
                 for customer in customers
-                if _is_eligible(customer, location, temporal)
+                if customer.id in available_customer_ids
+                and customer.id not in used_customer_ids
+                and _is_eligible(customer, location, temporal)
             )
             assigned = self._assign_record(
                 record,
@@ -146,6 +149,7 @@ class CustomerBehaviorEngine:
                 promotions,
                 context.random_engine,
                 drafts,
+                used_customer_ids,
             )
             unassigned += record.requested_units - assigned
 
@@ -178,17 +182,23 @@ class CustomerBehaviorEngine:
         promotions: PromotionContext,
         random_engine: RandomEngine,
         drafts: list[_IntentDraft],
+        used_customer_ids: set[str],
     ) -> int:
-        weights = tuple(
-            _customer_weight(customer, location, product, promotions, self._config)
-            for customer in customers
-        )
-        if not customers or sum(weights) <= 0:
+        candidates = list(customers)
+        if not candidates:
             return 0
 
         assigned = 0
-        while assigned < record.requested_units:
-            customer = random_engine.weighted_choice(customers, weights)
+        while assigned < record.requested_units and candidates:
+            weights = tuple(
+                _customer_weight(customer, location, product, promotions, self._config)
+                for customer in candidates
+            )
+            if sum(weights) <= 0:
+                break
+            customer = random_engine.weighted_choice(candidates, weights)
+            candidates.remove(customer)
+            used_customer_ids.add(customer.id)
             channel = _select_channel(
                 customer,
                 location,
@@ -239,7 +249,7 @@ def _is_eligible(
 ) -> bool:
     return (
         customer.active
-        and customer.segment is not CustomerSegment.INACTIVE
+        and customer.purchase_frequency > 0
         and customer.registered_at <= temporal.current_time.date()
         and location.opened_at <= temporal.current_time.date()
         and customer.home_city_id == location.city_id
@@ -254,12 +264,6 @@ def _customer_weight(
     promotions: PromotionContext,
     config: CustomerBehaviorEngineConfig,
 ) -> float:
-    segment_factors = {
-        CustomerSegment.OCCASIONAL: config.occasional_activity_factor,
-        CustomerSegment.REGULAR: config.regular_activity_factor,
-        CustomerSegment.FREQUENT: config.frequent_activity_factor,
-        CustomerSegment.INACTIVE: 0.0,
-    }
     location_factor = (
         config.preferred_location_bonus
         if customer.preferred_location_id == location.id
@@ -273,12 +277,31 @@ def _customer_weight(
         PromotionChannel.ALL,
         config,
     )
-    return (
-        segment_factors[customer.segment]
-        * customer.purchase_frequency
-        * customer.activity_factor
-        * location_factor
-        * promotion_factor
+    return customer.activity_factor * location_factor * promotion_factor
+
+
+_AVERAGE_MONTH = timedelta(days=365.25 / 12)
+
+
+def activity_probability(monthly_rate: float, clock: SimulationClock) -> float:
+    """Convert an expected monthly rate into availability for one tick."""
+    if monthly_rate <= 0:
+        return 0.0
+    month_fraction = (
+        TICK_DELTAS[clock.tick_unit].total_seconds() / _AVERAGE_MONTH.total_seconds()
+    )
+    return 1 - exp(-(monthly_rate * month_fraction))
+
+
+def _is_temporally_available(
+    customer: Customer,
+    clock: SimulationClock,
+    random_engine: RandomEngine,
+) -> bool:
+    if not customer.active or customer.purchase_frequency <= 0:
+        return False
+    return random_engine.uniform(0, 1) < activity_probability(
+        customer.purchase_frequency, clock
     )
 
 

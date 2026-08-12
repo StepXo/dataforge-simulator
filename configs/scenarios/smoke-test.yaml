@@ -20,11 +20,10 @@ locations:
 
 customers:
   count: 20
-  min_purchase_frequency: 0.2
-  max_purchase_frequency: 1.0
   mobile_preference_probability: 0.50
   inactive_probability: 0.10
-  high_frequency_probability: 0.10
+  activity_profiles:
+    - {name: baseline, weight: 1, monthly_rate_mean: 20, variation: 0.20, segment: regular}
 
 inventory:
   min_initial_stock: 5

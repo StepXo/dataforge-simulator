@@ -24,9 +24,7 @@ def random_times_within_tick(
     digest = sha256(f"{seed}:{namespace}:{clock.tick_index}".encode()).digest()
     random_engine = RandomEngine(int.from_bytes(digest[:8], "big"))
     offsets = sorted(random_engine.randint(0, seconds - 1) for _ in range(count))
-    return tuple(
-        clock.current_time + timedelta(seconds=offset) for offset in offsets
-    )
+    return tuple(clock.current_time + timedelta(seconds=offset) for offset in offsets)
 
 
 class SimulationClock:

@@ -19,6 +19,7 @@ from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.value_objects import DateRange
 from dataforge.generators.customers.events import CustomerCreated
 from dataforge.generators.customers.generator import (
+    CustomerActivityProfile,
     CustomerGenerationConfig,
     CustomerGenerator,
 )
@@ -56,14 +57,33 @@ def bootstrap_geography(ctx: SimulationContext) -> None:
     "kwargs",
     [
         {"count": 0},
-        {"min_purchase_frequency": -1},
-        {"min_purchase_frequency": 2, "max_purchase_frequency": 1},
+        {"activity_profiles": []},
+        {"activity_profiles": [{"name": "x", "weight": 0, "monthly_rate_mean": 2}]},
+        {"activity_profiles": [{"name": "x", "weight": 1, "monthly_rate_mean": 0}]},
         {"mobile_preference_probability": -0.1},
         {"mobile_preference_probability": 1.1},
         {"inactive_probability": -0.1},
         {"inactive_probability": 1.1},
-        {"high_frequency_probability": -0.1},
-        {"high_frequency_probability": 1.1},
+        {
+            "activity_profiles": [
+                {
+                    "name": "x",
+                    "weight": 1,
+                    "monthly_rate_mean": 2,
+                    "variation": -0.1,
+                }
+            ]
+        },
+        {
+            "activity_profiles": [
+                {
+                    "name": "x",
+                    "weight": 1,
+                    "monthly_rate_mean": 2,
+                    "segment": "inactive",
+                }
+            ]
+        },
     ],
 )
 def test_customer_config_validation(kwargs: dict[str, int | float]) -> None:
@@ -129,11 +149,60 @@ def test_customer_generator_invariants_and_distribution() -> None:
         if item.segment is CustomerSegment.INACTIVE:
             assert item.purchase_frequency == 0 and item.active is False
         else:
-            assert 0.2 <= item.purchase_frequency <= 8 and item.active is True
-    assert len({item.segment for item in customers}) > 1
+            assert item.purchase_frequency > 0 and item.active is True
+            assert item.activity_profile == "default"
     assert len({item.preferred_channel for item in customers}) == 2
     assert len({item.purchase_frequency for item in customers}) > 1
     assert len({item.activity_factor for item in customers}) > 1
+
+
+def test_arbitrary_profiles_generate_positive_rates_around_their_centers() -> None:
+    ctx, _ = context()
+    bootstrap_geography(ctx)
+    profiles = (
+        CustomerActivityProfile(name="a", weight=1, monthly_rate_mean=5),
+        CustomerActivityProfile(name="b", weight=1, monthly_rate_mean=25),
+    )
+    CustomerGenerator(
+        CustomerGenerationConfig(
+            count=2000, inactive_probability=0, activity_profiles=profiles
+        )
+    ).generate(ctx)
+    customers = tuple(ctx.state.collection("customers").all())
+    by_profile = {
+        name: [
+            item.purchase_frequency
+            for item in customers
+            if isinstance(item, Customer) and item.activity_profile == name
+        ]
+        for name in ("a", "b")
+    }
+    assert all(rate > 0 for rates in by_profile.values() for rate in rates)
+    assert sum(by_profile["a"]) / len(by_profile["a"]) == pytest.approx(5, rel=0.05)
+    assert sum(by_profile["b"]) / len(by_profile["b"]) == pytest.approx(25, rel=0.05)
+
+
+@pytest.mark.parametrize(
+    "rates",
+    [(10, 15, 20, 35), (2, 8, 50, 100)],
+)
+def test_activity_profiles_accept_arbitrary_positive_rates(
+    rates: tuple[int, ...],
+) -> None:
+    config = CustomerGenerationConfig(
+        activity_profiles=tuple(
+            CustomerActivityProfile(
+                name=f"profile-{index}",
+                weight=index + 1,
+                monthly_rate_mean=rate,
+            )
+            for index, rate in enumerate(rates)
+        )
+    )
+    assert (
+        tuple(profile.monthly_rate_mean for profile in config.activity_profiles)
+        == rates
+    )
 
 
 def test_preferred_location_falls_back_within_region() -> None:
