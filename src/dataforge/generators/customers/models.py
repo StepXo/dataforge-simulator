@@ -30,3 +30,4 @@ class Customer:
     activity_factor: float
     registered_at: date
     active: bool
+    activity_profile: str | None = None
