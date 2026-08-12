@@ -205,6 +205,30 @@ def test_activity_profiles_accept_arbitrary_positive_rates(
     )
 
 
+def test_mobile_preference_configuration_changes_generated_representation() -> None:
+    proportions: list[float] = []
+    for probability in (0.1, 0.9):
+        ctx, _ = context(42)
+        bootstrap_geography(ctx)
+        CustomerGenerator(
+            CustomerGenerationConfig(
+                count=1000,
+                mobile_preference_probability=probability,
+                inactive_probability=0,
+            )
+        ).generate(ctx)
+        customers = tuple(ctx.state.collection("customers").all())
+        proportions.append(
+            sum(
+                isinstance(item, Customer)
+                and item.preferred_channel is PreferredChannel.MOBILE
+                for item in customers
+            )
+            / len(customers)
+        )
+    assert proportions[0] < proportions[1]
+
+
 def test_customers_are_generated_only_in_cities_with_locations() -> None:
     ctx, _ = context()
     bootstrap_geography(ctx)

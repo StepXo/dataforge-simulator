@@ -337,8 +337,8 @@ def test_promotion_targets_affect_customer_weight(
     assert (promoted > baseline) is expected
 
 
-def test_preferred_channel_has_greater_selection_weight() -> None:
-    config = CustomerBehaviorEngineConfig(preferred_channel_bonus=1000)
+def test_configured_preferred_channel_is_used() -> None:
+    config = CustomerBehaviorEngineConfig()
     chosen = _select_channel(
         customer(preferred_channel=PreferredChannel.MOBILE),
         location(),

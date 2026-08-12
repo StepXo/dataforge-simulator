@@ -336,24 +336,9 @@ def _select_channel(
     config: CustomerBehaviorEngineConfig,
     random_engine: RandomEngine,
 ) -> PreferredChannel:
-    channels = (PreferredChannel.PHYSICAL, PreferredChannel.MOBILE)
-    weights = tuple(
-        (
-            config.preferred_channel_bonus
-            if channel is customer.preferred_channel
-            else 1.0
-        )
-        * _promotion_propensity(
-            customer,
-            location,
-            product,
-            promotions,
-            PromotionChannel(channel.value),
-            config,
-        )
-        for channel in channels
-    )
-    return random_engine.weighted_choice(channels, weights)
+    # Channel distribution is configured when customer preferences are generated.
+    # The runtime must not dilute that configured distribution with a second draw.
+    return customer.preferred_channel
 
 
 def _promotion_propensity(
