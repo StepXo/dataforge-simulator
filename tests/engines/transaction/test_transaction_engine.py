@@ -9,7 +9,7 @@ import pytest
 from dataforge.core.events.event_bus import EventBus
 from dataforge.core.events.event_store import EventStore
 from dataforge.core.random_engine import RandomEngine
-from dataforge.core.simulation_clock import SimulationClock
+from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import DateRange, TimeRange
@@ -92,6 +92,8 @@ def runtime(
     inventory: tuple[InventoryItem, ...] | None = None,
     opened_at: date = date(2020, 1, 1),
     product_active: bool = True,
+    seed: int = 42,
+    tick_unit: TickUnit = TickUnit.HOUR,
 ) -> tuple[SimulationContext, SimulationClock, EventStore]:
     selected_intents = (
         intents if intents is not None else (purchase_intent("intent-a"),)
@@ -108,9 +110,9 @@ def runtime(
     )
     store = EventStore()
     context = SimulationContext(
-        42, DateRange(NOW.date(), NOW.date()), RandomEngine(42), EventBus(store)
+        seed, DateRange(NOW.date(), NOW.date()), RandomEngine(seed), EventBus(store)
     )
-    clock = SimulationClock(TimeRange(NOW, NOW), TickUnit.HOUR)
+    clock = SimulationClock(TimeRange(NOW, NOW), tick_unit)
     customer = Customer(
         "customer-a",
         "city-a",
@@ -153,7 +155,7 @@ def runtime(
     for item in selected_inventory:
         inv.add(item.id, item)
     context.state.create_collection("temporal_context").add(
-        "tick-0", TemporalContext(0, NOW, TickUnit.HOUR)
+        "tick-0", TemporalContext(0, NOW, tick_unit)
     )
     context.state.create_collection("customer_behavior_context").add(
         "tick-0",
@@ -202,6 +204,72 @@ def test_sufficient_and_exact_stock_complete(stock: int) -> None:
     assert transaction.rejection_reason is None
     assert value.completed_units == 3 and value.net_amount == Decimal("270.00")
     assert context.state.collection("inventory").require("i").current_stock == stock
+
+
+def test_promoted_line_keeps_gross_unit_price() -> None:
+    intent = purchase_intent("intent-a", 2)
+    promoted = PriceQuote(
+        intent.id,
+        intent.basket_id,
+        intent.customer_id,
+        intent.location_id,
+        intent.product_id,
+        intent.channel,
+        2,
+        "COP",
+        Decimal("25000.00"),
+        Decimal("3872.50"),
+        Decimal("21127.50"),
+        Decimal("50000.00"),
+        Decimal("7745.00"),
+        Decimal("42255.00"),
+        ("promotion-a",),
+        0,
+    )
+    value, _, _ = result(
+        intents=(intent,),
+        quotes=(promoted,),
+        inventory=(InventoryItem("i", "location-a", "product-a", 5, 0, 10, True),),
+    )
+    line = value.transactions[0].lines[0]
+    assert line.unit_price == Decimal("25000.00")
+    assert line.gross_amount == line.unit_price * line.quantity
+    assert line.net_amount == line.gross_amount - line.discount_amount
+
+
+@pytest.mark.parametrize("stock", [5, 0])
+def test_line_money_invariants_apply_to_completed_and_rejected(stock: int) -> None:
+    value, _, _ = result(
+        inventory=(InventoryItem("i", "location-a", "product-a", stock, 0, 10, True),)
+    )
+    line = value.transactions[0].lines[0]
+    assert line.unit_price == Decimal("100.00")
+    assert line.gross_amount == line.unit_price * line.quantity
+    assert line.net_amount == line.gross_amount - line.discount_amount
+
+
+@pytest.mark.parametrize("tick_unit", [TickUnit.HOUR, TickUnit.DAY])
+def test_transactions_receive_reproducible_intratick_timestamps(
+    tick_unit: TickUnit,
+) -> None:
+    intents = (
+        purchase_intent("intent-a", 1, basket_id="basket-0-000001"),
+        purchase_intent("intent-b", 1, basket_id="basket-0-000002"),
+        purchase_intent("intent-c", 1, basket_id="basket-0-000003"),
+    )
+    first, first_context, _ = result(intents=intents, seed=42, tick_unit=tick_unit)
+    second, _, _ = result(intents=intents, seed=42, tick_unit=tick_unit)
+    different, _, _ = result(intents=intents, seed=137, tick_unit=tick_unit)
+    duration = TICK_DELTAS[tick_unit]
+    timestamps = tuple(item.occurred_at for item in first.transactions)
+
+    assert timestamps == tuple(item.occurred_at for item in second.transactions)
+    assert timestamps != tuple(item.occurred_at for item in different.transactions)
+    assert timestamps == tuple(sorted(timestamps))
+    assert all(NOW <= occurred_at < NOW + duration for occurred_at in timestamps)
+    assert any(occurred_at != NOW for occurred_at in timestamps)
+    location = first_context.state.collection("locations").require("location-a")
+    assert all(occurred_at.date() >= location.opened_at for occurred_at in timestamps)
 
 
 @pytest.mark.parametrize("stock", [2, 0])
@@ -261,6 +329,7 @@ def test_local_ledger_prevents_overselling_and_preserves_order() -> None:
     inventory_context = context.state.collection("inventory_context").require("tick-0")
     assert isinstance(inventory_context, InventoryContext)
     assert len(inventory_context.movements) == 1
+    assert inventory_context.movements[0].occurred_at == transaction.occurred_at
     assert inventory_context.total_units_sold == 4
     assert context.state.collection("inventory").require("i").current_stock == 1
 

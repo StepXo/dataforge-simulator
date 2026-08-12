@@ -18,58 +18,70 @@ products:
     category_id: tacos
     base_price: 12000.00
     base_cost: 5500.00
+    activity_factor: 2.0
   - id: taco-beef
     name: Taco de Res
     category_id: tacos
     base_price: 13000.00
     base_cost: 6200.00
+    activity_factor: 1.6
   - id: taco-vegetarian
     name: Taco Vegetariano
     category_id: tacos
     base_price: 10000.00
     base_cost: 4000.00
+    activity_factor: 0.7
   - id: combo-individual
     name: Combo Individual
     category_id: combos
     base_price: 25000.00
     base_cost: 11500.00
+    activity_factor: 1.5
   - id: combo-family
     name: Combo Familiar
     category_id: combos
     base_price: 76000.00
     base_cost: 35000.00
+    activity_factor: 0.5
   - id: drink-water
     name: Agua
     category_id: beverages
     base_price: 5000.00
     base_cost: 1800.00
+    activity_factor: 1.2
   - id: drink-lemonade
     name: Limonada
     category_id: beverages
     base_price: 8000.00
     base_cost: 3000.00
+    activity_factor: 1.3
   - id: side-nachos
     name: Nachos
     category_id: sides
     base_price: 14000.00
     base_cost: 6000.00
+    activity_factor: 1.0
   - id: side-guacamole
     name: Guacamole
     category_id: sides
     base_price: 10000.00
     base_cost: 4200.00
+    activity_factor: 0.8
   - id: dessert-churros
     name: Churros
     category_id: desserts
     base_price: 9000.00
     base_cost: 3200.00
+    activity_factor: 0.9
   - id: dessert-flan
     name: Flan
     category_id: desserts
     base_price: 10000.00
     base_cost: 3800.00
+    activity_factor: 0.6
   - id: dessert-cake
     name: Pastel de Tres Leches
     category_id: desserts
     base_price: 12000.00
     base_cost: 4600.00
+    activity_factor: 0.7

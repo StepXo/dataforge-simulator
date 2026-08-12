@@ -32,6 +32,7 @@ class ProductDefinition(BaseModel):
     category_id: NonEmptyString
     base_price: Decimal = Field(gt=0)
     base_cost: Decimal = Field(ge=0)
+    activity_factor: float = Field(default=1.0, gt=0)
     active: bool = True
 
     @model_validator(mode="after")

@@ -1,6 +1,8 @@
 """Resolve line outcomes and aggregate one transaction per basket."""
 
-from dataforge.core.simulation_clock import SimulationClock
+from datetime import datetime
+
+from dataforge.core.simulation_clock import SimulationClock, random_times_within_tick
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.core.state.simulation_state import require_tick_context
 from dataforge.core.value_objects import build_tick_sequence_id
@@ -133,7 +135,7 @@ class TransactionEngine:
                     quote_intent_id=quote.intent_id,
                     product_id=intent.product_id,
                     quantity=intent.requested_quantity,
-                    unit_price=quote.unit_effective_price,
+                    unit_price=quote.unit_base_price,
                     gross_amount=quote.gross_amount,
                     discount_amount=quote.discount_amount,
                     net_amount=quote.net_amount,
@@ -143,6 +145,9 @@ class TransactionEngine:
                 )
             )
 
+        transaction_times = random_times_within_tick(
+            clock, context.seed, "transaction", len(basket_lines)
+        )
         transactions = tuple(
             self._transaction(
                 sequence,
@@ -151,9 +156,11 @@ class TransactionEngine:
                 basket_currency[basket_id],
                 tuple(lines),
                 clock.tick_index,
-                temporal,
+                occurred_at,
             )
-            for sequence, (basket_id, lines) in enumerate(basket_lines.items(), start=1)
+            for sequence, ((basket_id, lines), occurred_at) in enumerate(
+                zip(basket_lines.items(), transaction_times, strict=True), start=1
+            )
         )
         result = self._context(clock.tick_index, temporal, transactions)
         collection = (
@@ -181,7 +188,7 @@ class TransactionEngine:
         currency: str,
         lines: tuple[TransactionLine, ...],
         tick: int,
-        temporal: TemporalContext,
+        occurred_at: datetime,
     ) -> Transaction:
         completed = tuple(
             line for line in lines if line.status is TransactionLineStatus.COMPLETED
@@ -218,7 +225,7 @@ class TransactionEngine:
             rejected_units=sum(line.quantity for line in rejected),
             status=status,
             tick_index=tick,
-            occurred_at=temporal.current_time,
+            occurred_at=occurred_at,
         )
 
     def _context(

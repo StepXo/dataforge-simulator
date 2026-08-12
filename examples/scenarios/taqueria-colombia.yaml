@@ -15,16 +15,18 @@ locations:
   max_per_region: 1
   min_capacity: 40
   max_capacity: 120
-  min_activity_factor: 0.60
-  max_activity_factor: 1.20
+  min_activity_factor: 0.40
+  max_activity_factor: 2.00
 
 customers:
   count: 100
-  min_purchase_frequency: 0.2
-  max_purchase_frequency: 4.0
-  mobile_preference_probability: 0.45
+  mobile_preference_probability: 0.35
   inactive_probability: 0.08
-  high_frequency_probability: 0.15
+  activity_profiles:
+    - {name: low, weight: 0.20, monthly_rate_mean: 10, variation: 0.20, segment: occasional}
+    - {name: medium, weight: 0.30, monthly_rate_mean: 15, variation: 0.20, segment: regular}
+    - {name: high, weight: 0.35, monthly_rate_mean: 20, variation: 0.20, segment: frequent}
+    - {name: very_high, weight: 0.15, monthly_rate_mean: 35, variation: 0.20, segment: frequent}
 
 inventory:
   min_initial_stock: 20

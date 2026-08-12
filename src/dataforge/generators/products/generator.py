@@ -44,7 +44,7 @@ class ProductGenerator:
                 base_price=product_definition.base_price,
                 base_cost=product_definition.base_cost,
                 base_margin=margin,
-                activity_factor=round(context.random_engine.uniform(0.50, 1.50), 2),
+                activity_factor=product_definition.activity_factor,
                 active=product_definition.active,
             )
             products.add(product.id, product)

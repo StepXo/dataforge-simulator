@@ -61,7 +61,7 @@ def test_product_generator_models_margin_and_events() -> None:
     assert item.base_price == Decimal("12000.00")
     assert item.base_cost == Decimal("5500.00")
     assert item.base_margin == Decimal("0.5417")
-    assert 0.50 <= item.activity_factor <= 1.50
+    assert item.activity_factor == catalog.products[0].activity_factor
     assert item.currency == "COP" and item.active is True
     with pytest.raises(FrozenInstanceError):
         item.name = "changed"  # type: ignore[attr-defined]
@@ -102,6 +102,18 @@ def test_product_margin_exact_and_rounded() -> None:
     ]
 
 
+def test_configured_product_activity_factor_is_preserved() -> None:
+    catalog = load_product_catalog(Path("configs/products/taqueria.yaml"))
+    configured = catalog.products[0].model_copy(update={"activity_factor": 3.0})
+    ctx, _ = context()
+    ProductGenerator(catalog.model_copy(update={"products": [configured]})).generate(
+        ctx
+    )
+    product = ctx.state.collection("products").require(configured.id)
+    assert isinstance(product, Product)
+    assert product.activity_factor == 3.0
+
+
 def test_reproducibility_duplicate_and_bootstrap_summary() -> None:
     catalog = load_product_catalog(Path("configs/products/taqueria.yaml"))
     contexts = [context(seed) for seed in (42, 42, 43)]
@@ -109,7 +121,7 @@ def test_reproducibility_duplicate_and_bootstrap_summary() -> None:
         ProductGenerator(catalog).generate(ctx)
     products = [ctx.state.collection("products").all() for ctx, _ in contexts]
     categories = [ctx.state.collection("categories").all() for ctx, _ in contexts]
-    assert products[0] == products[1] and products[0] != products[2]
+    assert products[0] == products[1] == products[2]
     assert categories[0] == categories[1] == categories[2]
     with pytest.raises(ValueError, match="must be empty"):
         ProductGenerator(catalog).generate(contexts[0][0])

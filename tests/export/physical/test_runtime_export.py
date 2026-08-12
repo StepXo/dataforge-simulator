@@ -1,6 +1,8 @@
 """Physical exporter integration with the incremental simulation runtime."""
 
 import csv
+from datetime import datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -72,6 +74,49 @@ def test_smoke_scenario_is_equivalent_across_all_incremental_sinks(
         both_directory / "parquet"
     )
     assert csv_counts(csv_directory)["metrics"] == 24
+    with (csv_directory / "transaction_lines.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        lines = tuple(csv.DictReader(file))
+    assert all(
+        Decimal(line["gross_amount"])
+        == Decimal(line["unit_price"]) * int(line["quantity"])
+        and Decimal(line["net_amount"])
+        == Decimal(line["gross_amount"]) - Decimal(line["discount_amount"])
+        for line in lines
+    )
+
+    with (csv_directory / "transactions.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        transactions = tuple(csv.DictReader(file))
+    start = datetime(2024, 1, 1)
+    transaction_times = {
+        item["transaction_id"]: datetime.fromisoformat(item["occurred_at"])
+        for item in transactions
+    }
+    assert all(
+        start + timedelta(hours=int(item["tick_index"]))
+        <= transaction_times[item["transaction_id"]]
+        < start + timedelta(hours=int(item["tick_index"]) + 1)
+        for item in transactions
+    )
+    assert any(
+        transaction_times[item["transaction_id"]]
+        != start + timedelta(hours=int(item["tick_index"]))
+        for item in transactions
+    )
+
+    with (csv_directory / "inventory_movements.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        movements = tuple(csv.DictReader(file))
+    assert all(
+        datetime.fromisoformat(item["occurred_at"])
+        == transaction_times[item["transaction_id"]]
+        for item in movements
+        if item["movement_type"] == "sale"
+    )
     for result in (null_result, csv_result, parquet_result, both_result):
         assert all(
             result.state.collection(name).count() == 0 for name in TICK_COLLECTIONS

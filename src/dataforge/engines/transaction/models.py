@@ -52,6 +52,10 @@ class TransactionLine:
         )
         if any(amount < 0 for amount in amounts):
             raise ValueError("TransactionLine monetary amounts must be non-negative")
+        if self.unit_price * Decimal(self.quantity) != self.gross_amount:
+            raise ValueError("TransactionLine gross amount is inconsistent")
+        if self.gross_amount - self.discount_amount != self.net_amount:
+            raise ValueError("TransactionLine net amount is inconsistent")
         if (self.status is TransactionLineStatus.COMPLETED) != (
             self.rejection_reason is None
         ):
