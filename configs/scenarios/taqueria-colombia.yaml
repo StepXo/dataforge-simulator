@@ -1,7 +1,7 @@
 simulation:
   seed: 42
   start_datetime: 2024-01-01T00:00:00
-  end_datetime: 2024-12-31T23:00:00
+  end_datetime: 2026-12-31T23:00:00
   tick_unit: hour
 
 geography:
