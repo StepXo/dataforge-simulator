@@ -89,6 +89,7 @@ class ReplenishmentEngine:
         completion_times = random_times_within_tick(
             clock, context.seed, "replenishment-completion", len(due)
         )
+        movement_sequence_offset = len(inventory_context.movements)
         for item, occurred_at in zip(due, completion_times, strict=True):
             stock = inventory[item.inventory_id]
             quantity_received = stock.max_stock - stock.current_stock
@@ -100,7 +101,9 @@ class ReplenishmentEngine:
                 movements.append(
                     InventoryMovement(
                         id=build_tick_sequence_id(
-                            "inventory-movement", clock.tick_index, len(movements) + 1
+                            "inventory-movement",
+                            clock.tick_index,
+                            movement_sequence_offset + len(movements) + 1,
                         ),
                         inventory_id=stock.id,
                         location_id=stock.location_id,
