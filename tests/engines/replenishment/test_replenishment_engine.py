@@ -190,6 +190,15 @@ def test_due_replenishment_uses_current_stock_and_never_exceeds_max(
     assert completed.completed_tick_index == 1
     assert completed.completed_at is not None
     assert completed.received_quantity == received
+    if received:
+        matching = tuple(
+            movement
+            for movement in value.movements
+            if movement.replenishment_id == completed.id
+        )
+        assert len(matching) == 1
+        assert matching[0].quantity == completed.received_quantity
+        assert matching[0].occurred_at == completed.completed_at
     types = [event.event_type for event in store.all_events()]
     assert types[-2:] == ["ReplenishmentCompleted", "ReplenishmentContextGenerated"]
 
