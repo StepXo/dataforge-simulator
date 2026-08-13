@@ -229,6 +229,11 @@ class OperationalDataBuilder:
                         "due_tick_index": replenishment_item.due_tick_index,
                         "created_at": replenishment_item.created_at,
                         "status": replenishment_item.status.value,
+                        "completed_tick_index": (
+                            replenishment_item.completed_tick_index
+                        ),
+                        "completed_at": replenishment_item.completed_at,
+                        "received_quantity": replenishment_item.received_quantity,
                     },
                 )
 
@@ -302,6 +307,7 @@ class OperationalDataBuilder:
                 "product_id": movement.product_id,
                 "transaction_id": movement.transaction_id,
                 "basket_id": movement.basket_id,
+                "replenishment_id": movement.replenishment_id,
                 "movement_type": movement.movement_type.value,
                 "quantity": movement.quantity,
                 "stock_before": movement.stock_before,

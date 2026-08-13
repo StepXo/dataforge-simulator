@@ -266,6 +266,7 @@ def build_operational_data_model() -> OperationalDataModel:
                     column("product_id", string),
                     column("transaction_id", string, nullable=True),
                     column("basket_id", string, nullable=True),
+                    column("replenishment_id", string, nullable=True),
                     column("movement_type", string),
                     column("quantity", integer),
                     column("stock_before", integer),
@@ -279,6 +280,9 @@ def build_operational_data_model() -> OperationalDataModel:
                     relationship("location_id", "locations", "location_id"),
                     relationship("product_id", "products", "product_id"),
                     relationship("transaction_id", "transactions", "transaction_id"),
+                    relationship(
+                        "replenishment_id", "replenishments", "replenishment_id"
+                    ),
                 ),
             ),
             dataset(
@@ -293,6 +297,9 @@ def build_operational_data_model() -> OperationalDataModel:
                     column("due_tick_index", integer),
                     column("created_at", datetime),
                     column("status", string),
+                    column("completed_tick_index", integer, nullable=True),
+                    column("completed_at", datetime, nullable=True),
+                    column("received_quantity", integer, nullable=True),
                 ),
                 primary_key=("replenishment_id",),
                 relationships=(

@@ -24,6 +24,7 @@ class InventoryMovement:
     stock_after: int
     tick_index: int
     occurred_at: datetime
+    replenishment_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.quantity < 1:
@@ -33,12 +34,16 @@ class InventoryMovement:
         if self.movement_type is InventoryMovementType.SALE:
             if self.transaction_id is None or self.basket_id is None:
                 raise ValueError("Sale movement requires transaction and basket IDs")
+            if self.replenishment_id is not None:
+                raise ValueError("Sale movement cannot reference a replenishment")
             expected_stock = self.stock_before - self.quantity
         else:
             if self.transaction_id is not None or self.basket_id is not None:
                 raise ValueError(
                     "Replenishment movement cannot reference a transaction"
                 )
+            if self.replenishment_id is None:
+                raise ValueError("Replenishment movement requires replenishment ID")
             expected_stock = self.stock_before + self.quantity
         if expected_stock != self.stock_after:
             raise ValueError("InventoryMovement stock values are inconsistent")

@@ -113,10 +113,15 @@ class ReplenishmentEngine:
                         stock_after=updated_stock.current_stock,
                         tick_index=clock.tick_index,
                         occurred_at=occurred_at,
+                        replenishment_id=item.id,
                     )
                 )
             completed_item = replace_dataclass(
-                item, status=ReplenishmentStatus.COMPLETED
+                item,
+                status=ReplenishmentStatus.COMPLETED,
+                completed_tick_index=clock.tick_index,
+                completed_at=occurred_at,
+                received_quantity=quantity_received,
             )
             pending_collection.replace(item.id, completed_item)
             completed.append(completed_item)
