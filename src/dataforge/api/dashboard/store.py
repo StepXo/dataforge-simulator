@@ -6,6 +6,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from threading import RLock
+from typing import Literal
 
 import duckdb
 
@@ -28,6 +29,17 @@ class DashboardRunMetadata:
     engine_executions: int
 
 
+@dataclass(frozen=True, slots=True)
+class DashboardRunStatus:
+    status: Literal["idle", "running", "completed", "failed"]
+    scenario: str | None
+    current_tick: int
+    total_ticks: int
+    progress_percent: float
+    simulated_time: datetime | None
+    error: str | None
+
+
 class AnalyticsDashboardStore:
     """Retain one completed in-memory analytical run across API requests."""
 
@@ -35,6 +47,45 @@ class AnalyticsDashboardStore:
         self._lock = RLock()
         self._connection: duckdb.DuckDBPyConnection | None = None
         self._metadata: DashboardRunMetadata | None = None
+        self._status = DashboardRunStatus("idle", None, 0, 0, 0.0, None, None)
+
+    def begin(
+        self,
+        scenario_path: Path,
+        total_ticks: int,
+        start_time: datetime,
+    ) -> None:
+        """Reserve the single candidate execution without replacing current data."""
+        with self._lock:
+            if self._status.status == "running":
+                raise RuntimeError("An analytical run is already in progress")
+            self._status = DashboardRunStatus(
+                "running",
+                scenario_path.name,
+                0,
+                total_ticks,
+                0.0,
+                start_time,
+                None,
+            )
+
+    def update_progress(
+        self, completed_ticks: int, total_ticks: int, simulated_time: datetime
+    ) -> None:
+        """Publish one successfully completed tick from the background run."""
+        with self._lock:
+            if self._status.status != "running":
+                return
+            progress = 100.0 * completed_ticks / total_ticks
+            self._status = DashboardRunStatus(
+                "running",
+                self._status.scenario,
+                completed_ticks,
+                total_ticks,
+                progress,
+                simulated_time,
+                None,
+            )
 
     def install(
         self,
@@ -56,8 +107,35 @@ class AnalyticsDashboardStore:
             previous = self._connection
             self._connection = connection
             self._metadata = metadata
+            self._status = DashboardRunStatus(
+                "completed",
+                scenario_path.name,
+                result.simulation_summary.ticks_processed,
+                result.simulation_summary.ticks_processed,
+                100.0,
+                simulation.end_datetime,
+                None,
+            )
             if previous is not None:
                 previous.close()
+
+    def fail(self, error: str) -> None:
+        """Publish candidate failure while retaining the last completed database."""
+        with self._lock:
+            self._status = DashboardRunStatus(
+                "failed",
+                self._status.scenario,
+                self._status.current_tick,
+                self._status.total_ticks,
+                self._status.progress_percent,
+                self._status.simulated_time,
+                error,
+            )
+
+    def status(self) -> DashboardRunStatus:
+        """Return one coherent immutable progress snapshot."""
+        with self._lock:
+            return self._status
 
     def snapshot(
         self,
@@ -81,6 +159,7 @@ class AnalyticsDashboardStore:
                 self._connection.close()
             self._connection = None
             self._metadata = None
+            self._status = DashboardRunStatus("idle", None, 0, 0, 0.0, None, None)
 
 
 dashboard_store = AnalyticsDashboardStore()

@@ -62,6 +62,12 @@ class SimulationClock:
         """Return whether every valid datetime has been processed."""
         return self._is_finished
 
+    @property
+    def total_ticks(self) -> int:
+        """Return the number of ticks in the inclusive configured time range."""
+        duration = self._time_range.end - self._time_range.start
+        return int(duration / TICK_DELTAS[self._tick_unit]) + 1
+
     def advance(self) -> None:
         """Complete the current tick and move to the next valid datetime."""
         if self._is_finished:

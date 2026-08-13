@@ -1,4 +1,4 @@
-const state = { data: null, currency: null, charts: {} };
+const state = { data: null, currency: null, charts: {}, polling: null };
 const money = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 const integer = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
@@ -8,14 +8,24 @@ document.querySelector("#currency").addEventListener("change", event => {
   render();
 });
 document.querySelector("#time-grain").addEventListener("change", renderSalesChart);
-loadDashboard();
+initializeDashboard();
+
+async function initializeDashboard() {
+  await loadScenarios();
+  const status = await loadStatus();
+  if (status.status === "running") {
+    setRunning(true);
+    renderProgress(status);
+    startPolling();
+  }
+  await loadDashboard();
+}
 
 async function runSimulation(event) {
   event.preventDefault();
-  const button = event.currentTarget.querySelector("button");
   const status = document.querySelector("#run-status");
-  button.disabled = true;
-  status.textContent = "Running simulation and building analytical data…";
+  setRunning(true);
+  status.textContent = "Starting simulation…";
   try {
     const response = await fetch("/analytics/run", {
       method: "POST",
@@ -23,12 +33,72 @@ async function runSimulation(event) {
       body: JSON.stringify({ scenario: document.querySelector("#scenario").value }),
     });
     if (!response.ok) throw new Error((await response.json()).detail || "Run failed");
-    await loadDashboard();
+    renderProgress(await response.json());
+    status.textContent = "Running simulation and building analytical data…";
+    startPolling();
   } catch (error) {
     status.textContent = error.message;
-  } finally {
-    button.disabled = false;
+    setRunning(false);
   }
+}
+
+async function loadScenarios() {
+  const response = await fetch("/analytics/scenarios");
+  if (!response.ok) throw new Error("Unable to load scenarios");
+  const scenarios = await response.json();
+  const selector = document.querySelector("#scenario");
+  selector.replaceChildren(...scenarios.map(value => option(value)));
+}
+
+async function loadStatus() {
+  const response = await fetch("/analytics/status");
+  if (!response.ok) throw new Error("Unable to load run status");
+  return response.json();
+}
+
+function startPolling() {
+  if (state.polling) clearInterval(state.polling);
+  pollStatus();
+  state.polling = setInterval(pollStatus, 10000);
+}
+
+async function pollStatus() {
+  try {
+    const current = await loadStatus();
+    renderProgress(current);
+    if (current.status === "completed") {
+      stopPolling();
+      setRunning(false);
+      await loadDashboard();
+    } else if (current.status === "failed") {
+      stopPolling();
+      setRunning(false);
+      document.querySelector("#run-status").textContent = current.error || "Simulation failed";
+    }
+  } catch (error) {
+    stopPolling();
+    setRunning(false);
+    document.querySelector("#run-status").textContent = error.message;
+  }
+}
+
+function stopPolling() {
+  if (state.polling) clearInterval(state.polling);
+  state.polling = null;
+}
+
+function setRunning(running) {
+  document.querySelector("#run-form button").disabled = running;
+  document.querySelector("#scenario").disabled = running;
+}
+
+function renderProgress(current) {
+  document.querySelector("#run-progress").classList.remove("hidden");
+  const percent = Math.max(0, Math.min(100, Number(current.progress_percent || 0)));
+  document.querySelector("#progress-bar").style.width = `${percent}%`;
+  document.querySelector("#progress-percent").textContent = `${percent.toFixed(1)}%`;
+  document.querySelector("#progress-ticks").textContent = `Tick ${integer.format(current.current_tick || 0)} / ${integer.format(current.total_ticks || 0)}`;
+  document.querySelector("#progress-time").textContent = current.simulated_time || "";
 }
 
 async function loadDashboard() {

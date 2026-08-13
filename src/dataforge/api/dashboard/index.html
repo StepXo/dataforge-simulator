@@ -18,10 +18,18 @@
     <form id="run-form" class="run-form">
       <label for="scenario">Scenario</label>
       <div class="run-controls">
-        <input id="scenario" name="scenario" value="smoke-test" autocomplete="off">
+        <select id="scenario" name="scenario" aria-label="Available scenario"></select>
         <button type="submit">Run simulation</button>
       </div>
       <p id="run-status" class="status">No analytical run loaded.</p>
+      <div id="run-progress" class="progress hidden" aria-live="polite">
+        <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+        <div class="progress-detail">
+          <strong id="progress-percent">0.0%</strong>
+          <span id="progress-ticks">Tick 0 / 0</span>
+          <span id="progress-time"></span>
+        </div>
+      </div>
     </form>
   </header>
 
