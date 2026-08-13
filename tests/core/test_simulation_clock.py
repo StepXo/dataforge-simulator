@@ -4,7 +4,11 @@ from datetime import datetime
 
 import pytest
 
-from dataforge.core.simulation_clock import SimulationClock
+from dataforge.core.simulation_clock import (
+    TICK_DELTAS,
+    SimulationClock,
+    random_times_within_tick,
+)
 from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import TimeRange
 
@@ -91,3 +95,28 @@ def test_hourly_ticks_across_two_midnights_total_twenty_five() -> None:
 
     assert clock.tick_index == 25
     assert clock.current_time == datetime(2026, 1, 2)
+
+
+@pytest.mark.parametrize("tick_unit", [TickUnit.HOUR, TickUnit.DAY])
+def test_random_times_are_reproducible_ordered_and_inside_tick(
+    tick_unit: TickUnit,
+) -> None:
+    start = datetime(2026, 1, 1, 10)
+    end = start + TICK_DELTAS[tick_unit]
+    clock = make_clock(start, end, tick_unit)
+
+    first = random_times_within_tick(clock, 42, "test", 8)
+    second = random_times_within_tick(clock, 42, "test", 8)
+    different = random_times_within_tick(clock, 137, "test", 8)
+
+    assert first == second
+    assert first != different
+    assert first == tuple(sorted(first))
+    assert all(start <= occurred_at < end for occurred_at in first)
+
+
+def test_random_times_reject_negative_count() -> None:
+    start = datetime(2026, 1, 1, 10)
+    clock = make_clock(start, start, TickUnit.HOUR)
+    with pytest.raises(ValueError, match="non-negative"):
+        random_times_within_tick(clock, 42, "test", -1)

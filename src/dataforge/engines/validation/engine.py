@@ -1,8 +1,9 @@
 """Fail-fast validation of master state and per-tick engine outputs."""
 
 from collections import Counter
+from decimal import Decimal
 
-from dataforge.core.simulation_clock import SimulationClock
+from dataforge.core.simulation_clock import TICK_DELTAS, SimulationClock
 from dataforge.core.simulation_context import SimulationContext
 from dataforge.engines.customer_behavior.models import CustomerBehaviorContext
 from dataforge.engines.demand.models import DemandContext
@@ -87,7 +88,7 @@ class StateValidationEngine:
         transactions = self._tick(
             context, checked, "transaction_context", key, TransactionContext
         )
-        self._validate_transactions(transactions, behavior, pricing)
+        self._validate_transactions(transactions, behavior, pricing, temporal, master)
         checks += 1
         inventory_context = self._tick(
             context, checked, "inventory_context", key, InventoryContext
@@ -316,6 +317,7 @@ class StateValidationEngine:
         locations = self._index(data["locations"], Location, "locations")
         products = self._index(data["products"], Product, "products")
         baskets: dict[str, tuple[str, str, object, int]] = {}
+        customer_baskets: dict[str, str] = {}
         for intent in behavior.intents:
             customer = customers.get(intent.customer_id)
             location = locations.get(intent.location_id)
@@ -326,6 +328,9 @@ class StateValidationEngine:
                 or intent.product_id not in products
                 or stock is None
                 or not stock.active
+                or not customer.active
+                or customer.purchase_frequency <= 0
+                or customer.registered_at > temporal.current_time.date()
             ):
                 raise ValueError(
                     f"PurchaseIntent '{intent.id}' references invalid business data"
@@ -348,6 +353,13 @@ class StateValidationEngine:
                     f"Basket '{intent.basket_id}' contains inconsistent intents"
                 )
             baskets[intent.basket_id] = identity
+            previous_basket = customer_baskets.setdefault(
+                intent.customer_id, intent.basket_id
+            )
+            if previous_basket != intent.basket_id:
+                raise ValueError(
+                    f"Customer '{intent.customer_id}' has multiple baskets in tick"
+                )
 
     def _validate_pricing(
         self, pricing: PricingContext, behavior: CustomerBehaviorContext
@@ -402,17 +414,31 @@ class StateValidationEngine:
         transactions: TransactionContext,
         behavior: CustomerBehaviorContext,
         pricing: PricingContext,
+        temporal: TemporalContext,
+        data: dict[str, tuple[object, ...]],
     ) -> None:
         intents = {item.id: item for item in behavior.intents}
         quotes = {item.intent_id: item for item in pricing.quotes}
         expected_baskets = {item.basket_id for item in behavior.intents}
         actual_baskets = [item.basket_id for item in transactions.transactions]
+        locations = self._index(data["locations"], Location, "locations")
+        tick_end = temporal.current_time + TICK_DELTAS[temporal.tick_unit]
         if (
             len(actual_baskets) != len(set(actual_baskets))
             or set(actual_baskets) != expected_baskets
         ):
             raise ValueError("Transactions must contain exactly one basket aggregate")
         for transaction in transactions.transactions:
+            location = locations.get(transaction.location_id)
+            if (
+                transaction.tick_index != temporal.tick_index
+                or not temporal.current_time <= transaction.occurred_at < tick_end
+                or location is None
+                or transaction.occurred_at.date() < location.opened_at
+            ):
+                raise ValueError(
+                    f"Transaction '{transaction.id}' has an invalid occurrence time"
+                )
             completed = 0
             rejected = 0
             for line in transaction.lines:
@@ -447,13 +473,18 @@ class StateValidationEngine:
                     line.applied_promotion_ids,
                 )
                 quote_money = (
-                    quote.unit_effective_price,
+                    quote.unit_base_price,
                     quote.gross_amount,
                     quote.discount_amount,
                     quote.net_amount,
                     quote.applied_promotion_ids,
                 )
-                if identity != expected_identity or money != quote_money:
+                if (
+                    identity != expected_identity
+                    or money != quote_money
+                    or line.gross_amount != line.unit_price * Decimal(line.quantity)
+                    or line.net_amount != line.gross_amount - line.discount_amount
+                ):
                     raise ValueError(
                         f"TransactionLine '{line.id}' is inconsistent with pricing"
                     )
@@ -526,11 +557,33 @@ class StateValidationEngine:
             if (
                 item.status is not ReplenishmentStatus.COMPLETED
                 or item.inventory_id not in inventory
+                or item.completed_tick_index != context.tick_index
+                or item.completed_at is None
+                or item.received_quantity is None
             ):
                 raise ValueError(f"Completed replenishment '{item.id}' is invalid")
+            matching = tuple(
+                movement
+                for movement in context.movements
+                if movement.replenishment_id == item.id
+            )
+            if (
+                item.received_quantity == 0
+                and matching
+                or item.received_quantity > 0
+                and (
+                    len(matching) != 1
+                    or matching[0].quantity != item.received_quantity
+                    or matching[0].occurred_at != item.completed_at
+                )
+            ):
+                raise ValueError(
+                    f"Completed replenishment '{item.id}' movement is inconsistent"
+                )
         for movement in context.movements:
             if (
                 movement.movement_type is not InventoryMovementType.REPLENISHMENT
+                or movement.replenishment_id is None
                 or movement.stock_after - movement.stock_before != movement.quantity
             ):
                 raise ValueError(

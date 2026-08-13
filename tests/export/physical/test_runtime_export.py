@@ -1,6 +1,8 @@
 """Physical exporter integration with the incremental simulation runtime."""
 
 import csv
+from datetime import datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -72,6 +74,89 @@ def test_smoke_scenario_is_equivalent_across_all_incremental_sinks(
         both_directory / "parquet"
     )
     assert csv_counts(csv_directory)["metrics"] == 24
+    with (csv_directory / "transaction_lines.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        lines = tuple(csv.DictReader(file))
+    assert all(
+        Decimal(line["gross_amount"])
+        == Decimal(line["unit_price"]) * int(line["quantity"])
+        and Decimal(line["net_amount"])
+        == Decimal(line["gross_amount"]) - Decimal(line["discount_amount"])
+        for line in lines
+    )
+
+    with (csv_directory / "transactions.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        transactions = tuple(csv.DictReader(file))
+    start = datetime(2024, 1, 1)
+    transaction_times = {
+        item["transaction_id"]: datetime.fromisoformat(item["occurred_at"])
+        for item in transactions
+    }
+    assert all(
+        start + timedelta(hours=int(item["tick_index"]))
+        <= transaction_times[item["transaction_id"]]
+        < start + timedelta(hours=int(item["tick_index"]) + 1)
+        for item in transactions
+    )
+    assert any(
+        transaction_times[item["transaction_id"]]
+        != start + timedelta(hours=int(item["tick_index"]))
+        for item in transactions
+    )
+
+    with (csv_directory / "inventory_movements.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        movements = tuple(csv.DictReader(file))
+    assert all(
+        datetime.fromisoformat(item["occurred_at"])
+        == transaction_times[item["transaction_id"]]
+        for item in movements
+        if item["movement_type"] == "sale"
+    )
+    replenishment_movements = {
+        item["replenishment_id"]: item
+        for item in movements
+        if item["movement_type"] == "replenishment"
+    }
+    with (csv_directory / "replenishments.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        replenishments = tuple(csv.DictReader(file))
+    for item in replenishments:
+        if item["status"] == "pending":
+            assert item["completed_tick_index"] == ""
+            assert item["completed_at"] == ""
+            assert item["received_quantity"] == ""
+            continue
+        assert item["completed_tick_index"] != ""
+        assert item["completed_at"] != ""
+        assert item["received_quantity"] != ""
+        if int(item["received_quantity"]) > 0:
+            assert item["replenishment_id"] in replenishment_movements
+    parquet_replenishments = pq.read_table(
+        parquet_directory / "replenishments.parquet"
+    ).to_pylist()
+    assert {
+        (
+            item["replenishment_id"],
+            item["status"],
+            item["completed_tick_index"],
+            item["received_quantity"],
+        )
+        for item in parquet_replenishments
+    } == {
+        (
+            item["replenishment_id"],
+            item["status"],
+            int(item["completed_tick_index"]) if item["completed_tick_index"] else None,
+            int(item["received_quantity"]) if item["received_quantity"] else None,
+        )
+        for item in replenishments
+    }
     for result in (null_result, csv_result, parquet_result, both_result):
         assert all(
             result.state.collection(name).count() == 0 for name in TICK_COLLECTIONS

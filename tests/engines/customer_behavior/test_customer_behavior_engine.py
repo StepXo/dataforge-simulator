@@ -1,5 +1,6 @@
 """Tests for customer behavior models, weights, and execution."""
 
+from collections import Counter
 from dataclasses import FrozenInstanceError
 from datetime import date, datetime
 from decimal import Decimal
@@ -19,9 +20,12 @@ from dataforge.engines.customer_behavior.engine import (
     CustomerBehaviorEngineConfig,
     _build_intents,
     _customer_weight,
+    _DemandPool,
     _IntentDraft,
+    _is_temporally_available,
     _promotion_propensity,
     _select_channel,
+    activity_probability,
 )
 from dataforge.engines.customer_behavior.models import (
     CustomerBehaviorContext,
@@ -86,7 +90,7 @@ def customer(
     home_city: str = "city-a",
     preferred_location: str = "location-a",
     preferred_channel: PreferredChannel = PreferredChannel.MOBILE,
-    frequency: float = 2.0,
+    frequency: float = 1_000_000.0,
     activity: float = 1.0,
     sensitivity: float = 1.0,
 ) -> Customer:
@@ -180,9 +184,6 @@ def runtime(
     "field,value",
     [
         ("max_units_per_intent", 0),
-        ("occasional_activity_factor", -0.1),
-        ("regular_activity_factor", -0.1),
-        ("frequent_activity_factor", -0.1),
         ("preferred_location_bonus", -0.1),
         ("preferred_channel_bonus", -0.1),
         ("promotion_sensitivity_weight", -0.1),
@@ -251,7 +252,7 @@ def test_basket_grouping_is_deterministic_and_uses_customer_location_channel() -
     assert _build_intents(drafts, 11, 11)[0].basket_id == "basket-11-000001"
 
 
-def test_customer_weight_uses_segment_frequency_activity_and_location() -> None:
+def test_customer_weight_uses_propensity_not_segment_or_monthly_rate() -> None:
     config = CustomerBehaviorEngineConfig()
     place = location()
     item = product()
@@ -271,10 +272,10 @@ def test_customer_weight_uses_segment_frequency_activity_and_location() -> None:
         empty_promotions,
         config,
     )
-    assert occasional < regular < frequent
+    assert occasional == regular == frequent
     assert _customer_weight(
         customer(frequency=4.0), place, item, empty_promotions, config
-    ) == pytest.approx(regular * 2)
+    ) == pytest.approx(regular)
     assert _customer_weight(
         customer(activity=1.5), place, item, empty_promotions, config
     ) == pytest.approx(regular * 1.5)
@@ -338,8 +339,8 @@ def test_promotion_targets_affect_customer_weight(
     assert (promoted > baseline) is expected
 
 
-def test_preferred_channel_has_greater_selection_weight() -> None:
-    config = CustomerBehaviorEngineConfig(preferred_channel_bonus=1000)
+def test_configured_preferred_channel_is_used() -> None:
+    config = CustomerBehaviorEngineConfig()
     chosen = _select_channel(
         customer(preferred_channel=PreferredChannel.MOBILE),
         location(),
@@ -355,7 +356,7 @@ def test_preferred_channel_has_greater_selection_weight() -> None:
     "candidate",
     [
         customer(active=False),
-        customer(segment=CustomerSegment.INACTIVE),
+        customer(frequency=0),
         customer(registered_at=date(2026, 8, 16)),
         customer(region="region-b"),
     ],
@@ -395,8 +396,149 @@ def test_assignment_conserves_units_limits_quantities_and_publishes_after_save()
     assert observed == [True]
     event = store.all_events()[-1]
     assert event.event_type == "CustomerBehaviorContextGenerated"
-    assert event.payload["total_requested_units"] == 11
-    assert event.payload["intents"][0]["basket_id"].startswith("basket-0-")
+    assert event.payload["total_requested_units"] <= 3
+    if event.payload["intents"]:
+        assert event.payload["intents"][0]["basket_id"].startswith("basket-0-")
+
+
+def test_monthly_rate_probability_scales_with_tick_duration_and_rate() -> None:
+    hour = SimulationClock(TimeRange(NOW, NOW), TickUnit.HOUR)
+    day = SimulationClock(TimeRange(NOW, NOW), TickUnit.DAY)
+    assert activity_probability(0, hour) == 0
+    assert activity_probability(20, hour) < activity_probability(20, day)
+    assert activity_probability(10, hour) < activity_probability(20, hour)
+
+
+def test_hourly_availability_observations_match_monthly_rate_scale() -> None:
+    clock = SimulationClock(
+        TimeRange(datetime(2024, 1, 1), datetime(2024, 1, 31, 23)),
+        TickUnit.HOUR,
+    )
+    random_engine = RandomEngine(42)
+    shoppers = tuple(
+        customer(f"customer-{index:06d}", frequency=20) for index in range(200)
+    )
+    observed = 0
+    while not clock.is_finished:
+        observed += sum(
+            _is_temporally_available(shopper, clock, random_engine)
+            for shopper in shoppers
+        )
+        clock.advance()
+    assert observed / len(shoppers) == pytest.approx(20, rel=0.10)
+
+
+def test_customer_creates_at_most_one_basket_and_excess_is_unassigned() -> None:
+    context, clock, _ = runtime(customers=(customer(),), demand_units=20)
+    CustomerBehaviorEngine(
+        CustomerBehaviorEngineConfig(max_units_per_intent=4)
+    ).execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    assert len({intent.basket_id for intent in result.intents}) <= 1
+    assert result.total_requested_units <= 4
+    assert result.total_requested_units + result.unassigned_demand_units == 20
+
+
+def test_available_customer_can_receive_multiple_products_in_one_basket() -> None:
+    engine = CustomerBehaviorEngine()
+    shopper = customer()
+    place = location()
+    promotions = PromotionContext(0, NOW, ())
+    drafts: list[_IntentDraft] = []
+    assigned_products: set[tuple[str, str]] = set()
+    first = product()
+    second = Product(
+        "product-b",
+        "B",
+        "category-a",
+        "COP",
+        Decimal("80"),
+        Decimal("40"),
+        Decimal("0.5000"),
+        1.0,
+        True,
+    )
+    pools = [_DemandPool(place, first, 1), _DemandPool(place, second, 1)]
+    baskets: dict[str, tuple[str, PreferredChannel]] = {}
+    engine._allocate_new_baskets(
+        [shopper],
+        pools,
+        promotions,
+        RandomEngine(42),
+        drafts,
+        baskets,
+        assigned_products,
+    )
+    engine._fill_existing_baskets(
+        [shopper],
+        pools,
+        promotions,
+        RandomEngine(42),
+        drafts,
+        baskets,
+        assigned_products,
+    )
+    intents = _build_intents(drafts, 0, 0)
+    assert len(intents) == 2
+    assert len({intent.basket_id for intent in intents}) == 1
+
+
+def _two_location_assignment(
+    demand_order: tuple[str, str], seed: int = 42
+) -> CustomerBehaviorContext:
+    first = location("location-a", city="city-a")
+    second = location("location-b", city="city-a")
+    shoppers = tuple(
+        customer(
+            f"customer-{index:06d}",
+            preferred_location="location-a" if index % 2 else "location-b",
+        )
+        for index in range(1, 41)
+    )
+    inventory = (
+        InventoryItem("inventory-a", first.id, "product-a", 0, 0, 100, True),
+        InventoryItem("inventory-b", second.id, "product-a", 0, 0, 100, True),
+    )
+    context, clock, _ = runtime(
+        seed=seed,
+        customers=shoppers,
+        item_location=first,
+        extra_locations=(second,),
+        inventory_items=inventory,
+        demand_units=0,
+    )
+    demand_collection = context.state.collection("demand_context")
+    demand_collection.clear()
+    records = tuple(
+        DemandRecord(location_id, "product-a", 20.0, 20) for location_id in demand_order
+    )
+    demand_collection.add("tick-0", DemandContext(0, NOW, records, 40))
+    CustomerBehaviorEngine().execute(context, clock)
+    result = context.state.collection("customer_behavior_context").require("tick-0")
+    assert isinstance(result, CustomerBehaviorContext)
+    return result
+
+
+def test_location_assignment_is_independent_of_demand_record_order() -> None:
+    forward = _two_location_assignment(("location-a", "location-b"))
+    reversed_result = _two_location_assignment(("location-b", "location-a"))
+    assert forward == reversed_result
+    counts = Counter(intent.location_id for intent in forward.intents)
+    assert counts["location-a"] > 0
+    assert counts["location-b"] > 0
+
+
+def test_preferred_location_influences_competitive_assignment() -> None:
+    result = _two_location_assignment(("location-a", "location-b"))
+    preferred = {
+        f"customer-{index:06d}": "location-a" if index % 2 else "location-b"
+        for index in range(1, 41)
+    }
+    matching = sum(
+        preferred[intent.customer_id] == intent.location_id for intent in result.intents
+    )
+    assert matching > len(result.intents) / 2
 
 
 @pytest.mark.parametrize(
@@ -447,8 +589,8 @@ def test_out_of_stock_assortment_still_allows_intent() -> None:
     CustomerBehaviorEngine().execute(context, clock)
     result = context.state.collection("customer_behavior_context").require("tick-0")
     assert isinstance(result, CustomerBehaviorContext)
-    assert result.total_requested_units == 4
-    assert result.unassigned_demand_units == 0
+    assert result.total_requested_units > 0
+    assert result.total_requested_units + result.unassigned_demand_units == 4
     assert (
         context.state.collection("inventory").require("inventory-a").current_stock == 0
     )

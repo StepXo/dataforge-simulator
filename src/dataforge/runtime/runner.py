@@ -1,5 +1,7 @@
 """Explicit composition root for the standard MVP simulation pipeline."""
 
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 from dataforge.bootstrap.runner import BootstrapRunner
@@ -35,22 +37,31 @@ from dataforge.runtime.summary import aggregate_run_metrics
 from dataforge.scenario.loader import load_scenario
 from dataforge.scenario.models import ScenarioDefinition
 
+SimulationProgressCallback = Callable[[int, int, datetime], None]
+
 
 class SimulationRunner:
     """Build and execute a fresh standard runtime for one scenario."""
 
     def __init__(
-        self, scenario: ScenarioDefinition, sink: OperationalDataSink | None = None
+        self,
+        scenario: ScenarioDefinition,
+        sink: OperationalDataSink | None = None,
+        progress_callback: SimulationProgressCallback | None = None,
     ) -> None:
         self._scenario = scenario
         self._sink = sink
+        self._progress_callback = progress_callback
 
     @classmethod
     def from_file(
-        cls, path: Path, sink: OperationalDataSink | None = None
+        cls,
+        path: Path,
+        sink: OperationalDataSink | None = None,
+        progress_callback: SimulationProgressCallback | None = None,
     ) -> "SimulationRunner":
         """Create a runner from the existing scenario YAML loader."""
-        return cls(load_scenario(path), sink=sink)
+        return cls(load_scenario(path), sink=sink, progress_callback=progress_callback)
 
     def run(self) -> SimulationResult:
         """Bootstrap and execute one independent simulation runtime."""
@@ -100,9 +111,20 @@ class SimulationRunner:
                 StateValidationEngine(),
             ]
         )
-        simulation_summary = orchestrator.run(
-            context, clock, post_tick=output.write_tick if output is not None else None
-        )
+
+        def post_tick(
+            current_context: SimulationContext, current_clock: SimulationClock
+        ) -> None:
+            if output is not None:
+                output.write_tick(current_context, current_clock)
+            if self._progress_callback is not None:
+                self._progress_callback(
+                    current_clock.tick_index + 1,
+                    current_clock.total_ticks,
+                    current_clock.current_time,
+                )
+
+        simulation_summary = orchestrator.run(context, clock, post_tick=post_tick)
         if output is not None:
             output.write_final(context)
             metrics_summary = output.metrics_summary()

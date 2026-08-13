@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DataForge Synthetic Business Analytics</title>
+  <link rel="stylesheet" href="/analytics/assets/dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+  <script src="/analytics/assets/dashboard.js" defer></script>
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">DATAFORGE · SYNTHETIC BUSINESS ANALYTICS</p>
+      <h1>Operational simulation, shaped into business insight.</h1>
+      <p class="subtitle">A completed synthetic run explored through the Analytical Model, DuckDB, and explicit business SQL.</p>
+    </div>
+    <form id="run-form" class="run-form">
+      <label for="scenario">Scenario</label>
+      <div class="run-controls">
+        <select id="scenario" name="scenario" aria-label="Available scenario"></select>
+        <button type="submit">Run simulation</button>
+      </div>
+      <p id="run-status" class="status">No analytical run loaded.</p>
+      <div id="run-progress" class="progress hidden" aria-live="polite">
+        <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+        <div class="progress-detail">
+          <strong id="progress-percent">0.0%</strong>
+          <span id="progress-ticks">Tick 0 / 0</span>
+          <span id="progress-time"></span>
+        </div>
+      </div>
+    </form>
+  </header>
+
+  <main id="dashboard" class="dashboard hidden">
+    <section class="toolbar panel">
+      <div id="run-meta" class="run-meta"></div>
+      <label>Currency <select id="currency"></select></label>
+    </section>
+
+    <section>
+      <div class="section-heading"><div><p class="eyebrow">OVERVIEW</p><h2>Run health at a glance</h2></div></div>
+      <div id="kpis" class="kpi-grid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">SALES OVER TIME</p><h2>Realized sales and lost opportunity</h2></div>
+        <select id="time-grain"><option value="daily">Daily</option><option value="monthly">Monthly</option></select>
+      </div>
+      <div class="chart-wrap"><canvas id="sales-chart"></canvas></div>
+    </section>
+
+    <section class="two-column">
+      <article class="panel"><p class="eyebrow">LOCATIONS</p><h2>Revenue concentration</h2><div class="chart-wrap"><canvas id="location-chart"></canvas></div><div id="location-table"></div></article>
+      <article class="panel"><p class="eyebrow">CHANNELS</p><h2>Observed channel performance</h2><div class="chart-wrap"><canvas id="channel-chart"></canvas></div><div id="channel-table"></div></article>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading"><div><p class="eyebrow">PRODUCTS &amp; CATEGORIES</p><h2>Realized and rejected outcomes</h2></div></div>
+      <div class="two-column tables"><div><h3>Products</h3><div id="products-table"></div></div><div><h3>Categories</h3><div id="categories-table"></div></div></div>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">LOST SALES</p><h2>Where demand did not convert</h2>
+      <div class="three-column tables"><div><h3>By product</h3><div id="lost-products"></div></div><div><h3>By location</h3><div id="lost-locations"></div></div><div><h3>By reason</h3><div id="lost-reasons"></div></div></div>
+    </section>
+
+    <section class="two-column">
+      <article class="panel"><p class="eyebrow">CUSTOMERS</p><h2>Purchase activity, not CLV</h2><div id="customers-table"></div></article>
+      <article class="panel"><p class="eyebrow">INVENTORY &amp; REPLENISHMENT</p><h2>Physical stock flow</h2><div id="inventory-summary" class="mini-kpis"></div><div id="inventory-table"></div></article>
+    </section>
+
+    <section class="panel">
+      <p class="eyebrow">PROMOTIONS</p><h2>Sales associated with promotions</h2>
+      <p class="note">Observational association only. A sales line may be associated with multiple promotions; per-promotion revenue is not an exclusive total or causal lift.</p>
+      <div class="two-column tables"><div><h3>Deduplicated promoted lines</h3><div id="promotion-summary"></div></div><div><h3>Association by promotion</h3><div id="promotion-table"></div></div></div>
+    </section>
+  </main>
+</body>
+</html>

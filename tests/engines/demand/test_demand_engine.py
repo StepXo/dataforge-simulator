@@ -155,6 +155,14 @@ def test_expected_demand_formula() -> None:
     assert _expected_demand(2, 1.5, 1.2, 2, 1.1) == 7.92
 
 
+def test_base_demand_and_location_activity_scale_market_demand() -> None:
+    baseline = _expected_demand(1, 1, 1, 1, 1)
+    assert _expected_demand(0.5, 1, 1, 1, 1) < baseline
+    assert _expected_demand(1.5, 1, 1, 1, 1) > baseline
+    assert _expected_demand(1, 0.5, 1, 1, 1) < baseline
+    assert _expected_demand(1, 1.5, 1, 1, 1) > baseline
+
+
 def test_temporal_factors_accumulate() -> None:
     config = DemandEngineConfig()
     morning = TemporalContext(0, datetime(2026, 8, 14, 8), TickUnit.HOUR)

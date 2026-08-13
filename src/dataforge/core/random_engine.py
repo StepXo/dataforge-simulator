@@ -18,6 +18,12 @@ class RandomEngine:
         """Return the next integer within an inclusive range."""
         return self._generator.randint(minimum, maximum)
 
+    def normal(self, mean: float, standard_deviation: float) -> float:
+        """Return the next normally distributed value."""
+        if standard_deviation < 0:
+            raise ValueError("standard_deviation must be non-negative")
+        return self._generator.gauss(mean, standard_deviation)
+
     def choice[T](self, values: Sequence[T]) -> T:
         """Return one value from a non-empty sequence."""
         return self._generator.choice(values)

@@ -61,7 +61,7 @@ def transaction(identifier: str, quantity: int, completed: bool) -> Transaction:
         f"intent-{identifier}",
         "product-a",
         quantity,
-        Decimal("1.00"),
+        gross / Decimal(quantity),
         gross,
         discount,
         net,

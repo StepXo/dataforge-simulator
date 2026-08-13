@@ -125,6 +125,12 @@ archivos esperados de una corrida anterior.
 
 ## Configuración de escenarios
 
+`customers.activity_profiles` admite perfiles ponderados arbitrarios. Cada perfil
+genera una tasa individual `purchase_frequency`, interpretada como compras esperadas
+por mes promedio. `variation` controla la dispersión reproducible alrededor de la
+media mensual; el nombre del perfil es solo metadata y no selecciona comportamiento.
+Los pesos son proporciones relativas y se normalizan durante la selección.
+
 La configuración pública se divide en tres niveles:
 
 1. [Geografía](examples/geography/colombia.yaml): país, regiones, áreas
