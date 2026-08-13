@@ -43,7 +43,7 @@ def test_dashboard_page_is_served_without_frontend_framework() -> None:
     assert client.get("/analytics/assets/dashboard.css").status_code == 200
     script = client.get("/analytics/assets/dashboard.js")
     assert script.status_code == 200
-    assert "setInterval(pollStatus, 1000)" in script.text
+    assert "setInterval(pollStatus, 10000)" in script.text
     assert 'button").disabled = running' in script.text
 
 
