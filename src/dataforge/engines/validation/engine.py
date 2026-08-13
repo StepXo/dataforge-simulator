@@ -557,11 +557,33 @@ class StateValidationEngine:
             if (
                 item.status is not ReplenishmentStatus.COMPLETED
                 or item.inventory_id not in inventory
+                or item.completed_tick_index != context.tick_index
+                or item.completed_at is None
+                or item.received_quantity is None
             ):
                 raise ValueError(f"Completed replenishment '{item.id}' is invalid")
+            matching = tuple(
+                movement
+                for movement in context.movements
+                if movement.replenishment_id == item.id
+            )
+            if (
+                item.received_quantity == 0
+                and matching
+                or item.received_quantity > 0
+                and (
+                    len(matching) != 1
+                    or matching[0].quantity != item.received_quantity
+                    or matching[0].occurred_at != item.completed_at
+                )
+            ):
+                raise ValueError(
+                    f"Completed replenishment '{item.id}' movement is inconsistent"
+                )
         for movement in context.movements:
             if (
                 movement.movement_type is not InventoryMovementType.REPLENISHMENT
+                or movement.replenishment_id is None
                 or movement.stock_after - movement.stock_before != movement.quantity
             ):
                 raise ValueError(

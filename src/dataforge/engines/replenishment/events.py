@@ -23,6 +23,7 @@ class ReplenishmentScheduled(DomainEvent):
                 "requested_tick_index": replenishment.requested_tick_index,
                 "due_tick_index": replenishment.due_tick_index,
                 "created_at": replenishment.created_at.isoformat(),
+                "status": replenishment.status.value,
             },
         )
 
@@ -45,11 +46,16 @@ class ReplenishmentCompleted(DomainEvent):
                 "location_id": replenishment.location_id,
                 "product_id": replenishment.product_id,
                 "requested_quantity": replenishment.requested_quantity,
-                "quantity_received": movement.quantity if movement else 0,
+                "quantity_received": replenishment.received_quantity,
                 "stock_before": stock_before,
                 "stock_after": stock_after,
                 "requested_tick_index": replenishment.requested_tick_index,
-                "completed_tick_index": completed_tick_index,
+                "completed_tick_index": replenishment.completed_tick_index,
+                "completed_at": (
+                    replenishment.completed_at.isoformat()
+                    if replenishment.completed_at
+                    else None
+                ),
                 "occurred_at": occurred_at.isoformat(),
             },
         )

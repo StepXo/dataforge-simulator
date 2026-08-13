@@ -117,6 +117,46 @@ def test_smoke_scenario_is_equivalent_across_all_incremental_sinks(
         for item in movements
         if item["movement_type"] == "sale"
     )
+    replenishment_movements = {
+        item["replenishment_id"]: item
+        for item in movements
+        if item["movement_type"] == "replenishment"
+    }
+    with (csv_directory / "replenishments.csv").open(
+        encoding="utf-8", newline=""
+    ) as file:
+        replenishments = tuple(csv.DictReader(file))
+    for item in replenishments:
+        if item["status"] == "pending":
+            assert item["completed_tick_index"] == ""
+            assert item["completed_at"] == ""
+            assert item["received_quantity"] == ""
+            continue
+        assert item["completed_tick_index"] != ""
+        assert item["completed_at"] != ""
+        assert item["received_quantity"] != ""
+        if int(item["received_quantity"]) > 0:
+            assert item["replenishment_id"] in replenishment_movements
+    parquet_replenishments = pq.read_table(
+        parquet_directory / "replenishments.parquet"
+    ).to_pylist()
+    assert {
+        (
+            item["replenishment_id"],
+            item["status"],
+            item["completed_tick_index"],
+            item["received_quantity"],
+        )
+        for item in parquet_replenishments
+    } == {
+        (
+            item["replenishment_id"],
+            item["status"],
+            int(item["completed_tick_index"]) if item["completed_tick_index"] else None,
+            int(item["received_quantity"]) if item["received_quantity"] else None,
+        )
+        for item in replenishments
+    }
     for result in (null_result, csv_result, parquet_result, both_result):
         assert all(
             result.state.collection(name).count() == 0 for name in TICK_COLLECTIONS

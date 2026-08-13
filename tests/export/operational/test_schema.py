@@ -118,6 +118,29 @@ def test_inventory_snapshot_and_historical_movements_remain_distinct() -> None:
     assert "occurred_at" not in column_names("inventory")
     assert movements.require_column("transaction_id").nullable is True
     assert movements.require_column("basket_id").nullable is True
+    assert movements.require_column("replenishment_id").nullable is True
+    assert (
+        "replenishment_id",
+        "replenishments",
+        "replenishment_id",
+    ) in relationship_targets("inventory_movements")
+
+
+def test_replenishment_schema_preserves_request_and_completion_facts() -> None:
+    replenishments = build_operational_data_model().require_dataset("replenishments")
+
+    assert {
+        "requested_quantity",
+        "requested_tick_index",
+        "due_tick_index",
+        "created_at",
+        "status",
+        "completed_tick_index",
+        "completed_at",
+        "received_quantity",
+    } <= column_names("replenishments")
+    for name in ("completed_tick_index", "completed_at", "received_quantity"):
+        assert replenishments.require_column(name).nullable is True
 
 
 def test_metrics_are_per_tick_and_money_is_logical_decimal() -> None:
