@@ -15,6 +15,7 @@ from dataforge.core.tick import TickUnit
 from dataforge.core.value_objects import DateRange, TimeRange
 from dataforge.engines.inventory.models import (
     InventoryContext,
+    InventoryMovement,
     InventoryMovementType,
     ReorderSignal,
 )
@@ -201,6 +202,37 @@ def test_due_replenishment_uses_current_stock_and_never_exceeds_max(
         assert matching[0].occurred_at == completed.completed_at
     types = [event.event_type for event in store.all_events()]
     assert types[-2:] == ["ReplenishmentCompleted", "ReplenishmentContextGenerated"]
+
+
+def test_replenishment_movement_sequence_continues_after_sale_movements() -> None:
+    item = inventory(8)
+    context, clock, _ = runtime(tick=1, item=item, pendings=(pending(due=1),))
+    sale = InventoryMovement(
+        "inventory-movement-1-000001",
+        item.id,
+        item.location_id,
+        item.product_id,
+        "transaction-1-000001",
+        "basket-1-000001",
+        InventoryMovementType.SALE,
+        1,
+        9,
+        8,
+        1,
+        NOW + timedelta(hours=1, minutes=1),
+    )
+    context.state.collection("inventory_context").replace(
+        "tick-1",
+        InventoryContext(1, clock.current_time, (sale,), (), (), 1, 1),
+    )
+
+    ReplenishmentEngine().execute(context, clock)
+
+    result = context.state.collection("replenishment_context").require("tick-1")
+    assert isinstance(result, ReplenishmentContext)
+    assert [movement.id for movement in result.movements] == [
+        "inventory-movement-1-000002"
+    ]
 
 
 def test_completion_happens_before_old_signal_and_does_not_reschedule() -> None:
